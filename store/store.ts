@@ -3,6 +3,7 @@ import authReducer from './authSlice';
 import ingredientsReducer from './ingredientsSlice';
 import mealsReducer from './mealsSlice';
 import profileReducer from './profileSlice';
+import shoppingListsReducer from './shoppingListsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     meals: mealsReducer,
     profile: profileReducer,
     auth: authReducer,
+    shoppingLists: shoppingListsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

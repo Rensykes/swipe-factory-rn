@@ -1,13 +1,16 @@
+import AddToShoppingListModal from '@/components/add-to-shopping-list-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAppSelector } from '@/store/hooks';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 export default function MealDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const meals = useAppSelector((state) => state.meals.meals);
+  const [showShoppingListModal, setShowShoppingListModal] = useState(false);
   
   const meal = meals.find((m) => m.idMeal === id);
 
@@ -110,6 +113,17 @@ export default function MealDetailScreen() {
                 </View>
               ))}
             </View>
+            
+            <Pressable
+              style={({ pressed }) => [
+                styles.addToListButton,
+                pressed && styles.addToListButtonPressed,
+              ]}
+              onPress={() => setShowShoppingListModal(true)}>
+              <ThemedText style={styles.addToListButtonText}>
+                🛒 Add to Shopping List
+              </ThemedText>
+            </Pressable>
           </View>
 
           <View style={styles.section}>
@@ -122,6 +136,12 @@ export default function MealDetailScreen() {
           <View style={styles.bottomSpacer} />
         </View>
       </ScrollView>
+      
+      <AddToShoppingListModal
+        visible={showShoppingListModal}
+        onClose={() => setShowShoppingListModal(false)}
+        ingredients={meal.ingredients}
+      />
     </ThemedView>
   );
 }
@@ -263,5 +283,21 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
+  },
+  addToListButton: {
+    backgroundColor: '#0A84FF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  addToListButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  addToListButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

@@ -54,6 +54,25 @@ export interface SavedMeal {
   createdAt?: Timestamp;
 }
 
+// Shopping list items
+export interface ShoppingListItem {
+  id?: string;
+  ingredient: string;
+  measure: string;
+  checked: boolean;
+  addedAt?: Timestamp;
+}
+
+// Shopping lists
+export interface ShoppingList {
+  id?: string;
+  userId: string;
+  name: string;
+  items: ShoppingListItem[];
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
 export const firestoreService = {
   // User Profile Operations
   async createUserProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
@@ -210,5 +229,109 @@ export const firestoreService = {
   async deleteNutritionTargets(userId: string): Promise<void> {
     const targetsRef = doc(db, 'users', userId, 'daily_nutrition_targets', 'current');
     await deleteDoc(targetsRef);
+  },
+
+  // Shopping Lists Operations
+  async createShoppingList(userId: string, name: string, items: Omit<ShoppingListItem, 'id' | 'addedAt'>[] = []): Promise<string> {
+    const shoppingListsRef = collection(db, 'shoppingLists');
+    const itemsWithTimestamp = items.map(item => ({
+      ...item,
+      id: Math.random().toString(36).substring(7),
+      addedAt: serverTimestamp(),
+    }));
+    
+    const docRef = await addDoc(shoppingListsRef, {
+      userId,
+      name,
+      items: itemsWithTimestamp,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return docRef.id;
+  },
+
+  async getUserShoppingLists(userId: string): Promise<ShoppingList[]> {
+    const shoppingListsRef = collection(db, 'shoppingLists');
+    const q = query(shoppingListsRef, where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as ShoppingList[];
+  },
+
+  async getShoppingList(listId: string): Promise<ShoppingList | null> {
+    const listRef = doc(db, 'shoppingLists', listId);
+    const listSnap = await getDoc(listRef);
+    
+    if (listSnap.exists()) {
+      return { id: listSnap.id, ...listSnap.data() } as ShoppingList;
+    }
+    return null;
+  },
+
+  async updateShoppingList(listId: string, updates: Partial<Omit<ShoppingList, 'id' | 'userId' | 'createdAt'>>): Promise<void> {
+    const listRef = doc(db, 'shoppingLists', listId);
+    await updateDoc(listRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  async addItemsToShoppingList(listId: string, items: Omit<ShoppingListItem, 'id' | 'addedAt'>[]): Promise<void> {
+    const listRef = doc(db, 'shoppingLists', listId);
+    const listSnap = await getDoc(listRef);
+    
+    if (listSnap.exists()) {
+      const currentItems = (listSnap.data().items || []) as ShoppingListItem[];
+      const newItems = items.map(item => ({
+        ...item,
+        id: Math.random().toString(36).substring(7),
+        addedAt: serverTimestamp(),
+      }));
+      
+      await updateDoc(listRef, {
+        items: [...currentItems, ...newItems],
+        updatedAt: serverTimestamp(),
+      });
+    }
+  },
+
+  async updateShoppingListItem(listId: string, itemId: string, updates: Partial<ShoppingListItem>): Promise<void> {
+    const listRef = doc(db, 'shoppingLists', listId);
+    const listSnap = await getDoc(listRef);
+    
+    if (listSnap.exists()) {
+      const items = (listSnap.data().items || []) as ShoppingListItem[];
+      const updatedItems = items.map(item => 
+        item.id === itemId ? { ...item, ...updates } : item
+      );
+      
+      await updateDoc(listRef, {
+        items: updatedItems,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  },
+
+  async deleteShoppingListItem(listId: string, itemId: string): Promise<void> {
+    const listRef = doc(db, 'shoppingLists', listId);
+    const listSnap = await getDoc(listRef);
+    
+    if (listSnap.exists()) {
+      const items = (listSnap.data().items || []) as ShoppingListItem[];
+      const filteredItems = items.filter(item => item.id !== itemId);
+      
+      await updateDoc(listRef, {
+        items: filteredItems,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  },
+
+  async deleteShoppingList(listId: string): Promise<void> {
+    const listRef = doc(db, 'shoppingLists', listId);
+    await deleteDoc(listRef);
   },
 };
