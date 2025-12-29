@@ -149,7 +149,8 @@ export const loadProfile = () => async (dispatch: AppDispatch) => {
           gender: firestoreProfile.gender || 'male',
           height: firestoreProfile.height || 0,
           weight: firestoreProfile.weight || 0,
-          activityLevel: firestoreProfile.activityLevel || 'moderately_active',
+          activityLevel: firestoreProfile.activityLevel === 'extra_active' ? 'extremely_active' : 
+                         (firestoreProfile.activityLevel || 'moderately_active') as ActivityLevel,
           goal: firestoreProfile.goal === 'lose' ? 'lose_weight' : 
                 firestoreProfile.goal === 'gain' ? 'gain_weight' : 'maintain',
         };

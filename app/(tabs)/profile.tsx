@@ -37,9 +37,9 @@ export default function ProfileScreen() {
     }
   }, [profile]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name || !age || !height || !weight) {
-      alert('Please fill in all required fields');
+      Alert.alert('Validation Error', 'Please fill in all required fields');
       return;
     }
 
@@ -53,7 +53,13 @@ export default function ProfileScreen() {
       goal,
     };
 
-    dispatch(saveProfile(profileData));
+    try {
+      await dispatch(saveProfile(profileData));
+      Alert.alert('Success', 'Profile saved successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
+      console.error('Error saving profile:', error);
+    }
   };
 
   const handleSignOut = () => {
