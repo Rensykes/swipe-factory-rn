@@ -41,11 +41,13 @@ const IngredientCard = memo(({
   ingredient, 
   isSelected, 
   onToggle,
+  onShowDetail,
   colorScheme,
 }: { 
   ingredient: IngredientWithNutrition; 
   isSelected: boolean; 
   onToggle: (name: string) => void;
+  onShowDetail: (ingredient: IngredientWithNutrition) => void;
   colorScheme: 'light' | 'dark' | null | undefined;
 }) => (
   <Pressable
@@ -60,16 +62,26 @@ const IngredientCard = memo(({
       pressed && { opacity: 0.8 },
     ]}
     onPress={() => onToggle(ingredient.strIngredient)}>
-    <View style={styles.ingredientContent}>
-      <ThemedText style={[
-        styles.ingredientName,
-        isSelected && styles.ingredientNameSelected,
-      ]}>
-        {ingredient.strIngredient}
-      </ThemedText>
-      {isSelected && (
-        <ThemedText style={styles.checkmark}>✓</ThemedText>
-      )}
+    <View style={styles.cardHeader}>
+      <View style={styles.ingredientContent}>
+        <ThemedText style={[
+          styles.ingredientName,
+          isSelected && styles.ingredientNameSelected,
+        ]}>
+          {ingredient.strIngredient}
+        </ThemedText>
+        {isSelected && (
+          <ThemedText style={styles.checkmark}>✓</ThemedText>
+        )}
+      </View>
+      <Pressable
+        style={({ pressed }) => [
+          styles.infoButton,
+          pressed && styles.infoButtonPressed,
+        ]}
+        onPress={() => onShowDetail(ingredient)}>
+        <IconSymbol name="info.circle" size={20} color="#007AFF" />
+      </Pressable>
     </View>
     {ingredient.nutrition && (
       <View style={styles.nutritionContainer}>
@@ -113,6 +125,8 @@ export default function MealPlannerScreen() {
 
   const [activeTab, setActiveTab] = useState<TabType>('ingredients');
   const [selectedMealDetail, setSelectedMealDetail] = useState<MealIdea | null>(null);
+  const [selectedIngredientDetail, setSelectedIngredientDetail] = useState<IngredientWithNutrition | null>(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   useEffect(() => {
     dispatch(fetchIngredients());
@@ -214,6 +228,14 @@ export default function MealPlannerScreen() {
   const closeMealDetail = () => {
     setSelectedMealDetail(null);
   };
+
+  const showIngredientDetail = useCallback((ingredient: IngredientWithNutrition) => {
+    setSelectedIngredientDetail(ingredient);
+  }, []);
+
+  const closeIngredientDetail = useCallback(() => {
+    setSelectedIngredientDetail(null);
+  }, []);
 
   const selectedSet = useMemo(() => new Set(selectedIngredients), [selectedIngredients]);
 
@@ -493,6 +515,7 @@ export default function MealPlannerScreen() {
                   ingredient={item}
                   isSelected={selectedSet.has(item.strIngredient)}
                   onToggle={handleToggleIngredient}
+                  onShowDetail={showIngredientDetail}
                   colorScheme={colorScheme}
                 />
               )}
@@ -656,6 +679,204 @@ export default function MealPlannerScreen() {
               </>
             )}
           </ThemedView>
+        </View>
+      </Modal>
+
+      {/* Ingredient Detail Modal */}
+      <Modal
+        visible={selectedIngredientDetail !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeIngredientDetail}>
+        <View style={styles.ingredientModalOverlay}>
+          <Pressable 
+            style={StyleSheet.absoluteFill}
+            onPress={closeIngredientDetail}
+          />
+          <View 
+            style={[
+              styles.ingredientModalCard,
+              { backgroundColor: colorScheme === 'dark' ? '#1C1C1E' : '#fff' }
+            ]}>
+            {selectedIngredientDetail && (
+              <>
+                <View style={styles.modalHeader}>
+                  <ThemedText type="title" style={styles.modalTitle}>
+                    {selectedIngredientDetail.strIngredient}
+                  </ThemedText>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.closeButton,
+                      { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' },
+                      pressed && styles.buttonPressed,
+                    ]}
+                    onPress={closeIngredientDetail}>
+                    <ThemedText style={styles.closeButtonText}>×</ThemedText>
+                  </Pressable>
+                </View>
+
+                <ScrollView 
+                  style={styles.modalScroll}
+                  showsVerticalScrollIndicator={true}
+                  bounces={true}>
+                  {selectedIngredientDetail.strDescription && (
+                    <View style={styles.modalSection}>
+                      <Pressable 
+                        onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                        style={styles.collapsibleHeader}>
+                        <ThemedText type="subtitle" style={styles.sectionTitle}>
+                          Description
+                        </ThemedText>
+                        <ThemedText style={styles.chevron}>
+                          {isDescriptionExpanded ? '▼' : '▶'}
+                        </ThemedText>
+                      </Pressable>
+                      {isDescriptionExpanded && (
+                        <ThemedText style={styles.modalDescription}>
+                          {selectedIngredientDetail.strDescription}
+                        </ThemedText>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Macro Distribution Chart */}
+                  {selectedIngredientDetail.nutrition && (
+                    <View style={styles.modalSection}>
+                      <ThemedText type="subtitle" style={styles.sectionTitle}>
+                        Macro Distribution
+                      </ThemedText>
+                      <View style={styles.macroChartContainer}>
+                        {(() => {
+                          const protein = parseFloat(selectedIngredientDetail.nutrition?.protein?.replace('g', '') || '0');
+                          const carbs = parseFloat(selectedIngredientDetail.nutrition?.carbs?.replace('g', '') || '0');
+                          const fat = parseFloat(selectedIngredientDetail.nutrition?.fat?.replace('g', '') || '0');
+                          const total = protein + carbs + fat;
+                          
+                          if (total === 0) return (
+                            <ThemedText style={styles.noDataText}>No macro data available</ThemedText>
+                          );
+                          
+                          const proteinPercent = (protein / total) * 100;
+                          const carbsPercent = (carbs / total) * 100;
+                          const fatPercent = (fat / total) * 100;
+                          
+                          return (
+                            <>
+                              <View style={styles.macroBar}>
+                                {proteinPercent > 0 && (
+                                  <View 
+                                    style={[
+                                      styles.macroBarSegment,
+                                      styles.proteinSegment,
+                                      { width: `${proteinPercent}%` }
+                                    ]} 
+                                  />
+                                )}
+                                {carbsPercent > 0 && (
+                                  <View 
+                                    style={[
+                                      styles.macroBarSegment,
+                                      styles.carbsSegment,
+                                      { width: `${carbsPercent}%` }
+                                    ]} 
+                                  />
+                                )}
+                                {fatPercent > 0 && (
+                                  <View 
+                                    style={[
+                                      styles.macroBarSegment,
+                                      styles.fatSegment,
+                                      { width: `${fatPercent}%` }
+                                    ]} 
+                                  />
+                                )}
+                              </View>
+                              <View style={styles.macroLegend}>
+                                <View style={styles.legendItem}>
+                                  <View style={[styles.legendColor, styles.proteinSegment]} />
+                                  <ThemedText style={styles.legendText}>
+                                    Protein {proteinPercent.toFixed(1)}%
+                                  </ThemedText>
+                                </View>
+                                <View style={styles.legendItem}>
+                                  <View style={[styles.legendColor, styles.carbsSegment]} />
+                                  <ThemedText style={styles.legendText}>
+                                    Carbs {carbsPercent.toFixed(1)}%
+                                  </ThemedText>
+                                </View>
+                                <View style={styles.legendItem}>
+                                  <View style={[styles.legendColor, styles.fatSegment]} />
+                                  <ThemedText style={styles.legendText}>
+                                    Fat {fatPercent.toFixed(1)}%
+                                  </ThemedText>
+                                </View>
+                              </View>
+                            </>
+                          );
+                        })()}
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.modalSection}>
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Nutritional Information (per 100g)
+                    </ThemedText>
+                    <View style={styles.ingredientModalNutrition}>
+                      <View style={[
+                        styles.ingredientModalNutritionItem,
+                        { 
+                          backgroundColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.2)' : 'rgba(0, 122, 255, 0.15)',
+                          borderColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.4)' : 'rgba(0, 122, 255, 0.3)',
+                        }
+                      ]}>
+                        <ThemedText style={styles.ingredientModalNutritionLabel}>Calories</ThemedText>
+                        <ThemedText style={styles.ingredientModalNutritionValue}>
+                          {selectedIngredientDetail.nutrition?.calories || 'N/A'}
+                        </ThemedText>
+                      </View>
+                      <View style={[
+                        styles.ingredientModalNutritionItem,
+                        { 
+                          backgroundColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.2)' : 'rgba(0, 122, 255, 0.15)',
+                          borderColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.4)' : 'rgba(0, 122, 255, 0.3)',
+                        }
+                      ]}>
+                        <ThemedText style={styles.ingredientModalNutritionLabel}>Protein</ThemedText>
+                        <ThemedText style={styles.ingredientModalNutritionValue}>
+                          {selectedIngredientDetail.nutrition?.protein || 'N/A'}
+                        </ThemedText>
+                      </View>
+                      <View style={[
+                        styles.ingredientModalNutritionItem,
+                        { 
+                          backgroundColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.2)' : 'rgba(0, 122, 255, 0.15)',
+                          borderColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.4)' : 'rgba(0, 122, 255, 0.3)',
+                        }
+                      ]}>
+                        <ThemedText style={styles.ingredientModalNutritionLabel}>Carbohydrates</ThemedText>
+                        <ThemedText style={styles.ingredientModalNutritionValue}>
+                          {selectedIngredientDetail.nutrition?.carbs || 'N/A'}
+                        </ThemedText>
+                      </View>
+                      <View style={[
+                        styles.ingredientModalNutritionItem,
+                        { 
+                          backgroundColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.2)' : 'rgba(0, 122, 255, 0.15)',
+                          borderColor: colorScheme === 'dark' ? 'rgba(0, 122, 255, 0.4)' : 'rgba(0, 122, 255, 0.3)',
+                        }
+                      ]}>
+                        <ThemedText style={styles.ingredientModalNutritionLabel}>Fat</ThemedText>
+                        <ThemedText style={styles.ingredientModalNutritionValue}>
+                          {selectedIngredientDetail.nutrition?.fat || 'N/A'}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
+                </ScrollView>
+              </>
+            )}
+          </View>
         </View>
       </Modal>
     </ThemedView>
@@ -1143,6 +1364,63 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
   },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chevron: {
+    fontSize: 14,
+    opacity: 0.6,
+  },
+  macroChartContainer: {
+    marginTop: 8,
+  },
+  macroBar: {
+    flexDirection: 'row',
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  macroBarSegment: {
+    height: '100%',
+  },
+  proteinSegment: {
+    backgroundColor: '#FF6B6B',
+  },
+  carbsSegment: {
+    backgroundColor: '#4ECDC4',
+  },
+  fatSegment: {
+    backgroundColor: '#FFE66D',
+  },
+  macroLegend: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendColor: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 14,
+  },
+  noDataText: {
+    fontSize: 14,
+    opacity: 0.6,
+    textAlign: 'center',
+    paddingVertical: 12,
+  },
   ingredientRow: {
     flexDirection: 'row',
     marginBottom: 8,
@@ -1161,5 +1439,62 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     opacity: 0.8,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  infoButton: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 122, 255, 0.2)',
+  },
+  infoButtonPressed: {
+    opacity: 0.5,
+    transform: [{ scale: 0.9 }],
+  },
+  ingredientModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  ingredientModalCard: {
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 420,
+    height: '90%',
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  ingredientModalNutrition: {
+    gap: 12,
+  },
+  ingredientModalNutritionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  ingredientModalNutritionLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  ingredientModalNutritionValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#007AFF',
   },
 });

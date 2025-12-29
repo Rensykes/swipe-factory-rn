@@ -1,6 +1,7 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MealIdea } from '@/services/openaiService';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { deleteSavedMeal, loadSavedMeals } from '@/store/mealPlannerSlice';
@@ -24,6 +25,7 @@ export default function RecipeBookScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const colorScheme = useColorScheme();
   const { savedMeals: aiMeals, isLoading: loadingAI } = useAppSelector(
     (state) => state.mealPlanner
   );
@@ -118,105 +120,138 @@ export default function RecipeBookScreen() {
   const isLoading = loadingAI || loadingMealDB;
 
   const renderAIRecipeCard = (recipe: MealIdea) => (
-    <ThemedView key={recipe.id} style={styles.recipeCard}>
+    <ThemedView key={recipe.id} style={[
+      styles.recipeCard,
+      { 
+        backgroundColor: colorScheme === 'dark' ? '#1C1C1E' : '#fff',
+        borderColor: colorScheme === 'dark' ? '#2C2C2E' : 'rgba(128, 128, 128, 0.2)'
+      }
+    ]}>
       <View style={styles.recipeHeader}>
-        <View style={styles.recipeHeaderLeft}>
-          <ThemedText type="subtitle" style={styles.recipeName}>
-            {recipe.name}
-          </ThemedText>
-          <View style={styles.sourceBadge}>
-            <IconSymbol name="sparkles" size={12} color="#007AFF" style={styles.badgeIcon} />
-            <ThemedText style={styles.sourceBadgeText}>AI Generated</ThemedText>
+        <ThemedText style={styles.recipeName}>
+          {recipe.name}
+        </ThemedText>
+        {recipe.tags && recipe.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {recipe.tags.slice(0, 2).map((tag, index) => (
+              <View key={index} style={[styles.tag, { backgroundColor: colorScheme === 'dark' ? '#1C3A57' : '#e8f4ff' }]}>
+                <ThemedText style={[styles.tagText, { color: '#007AFF' }]}>{tag}</ThemedText>
+              </View>
+            ))}
           </View>
-        </View>
+        )}
       </View>
 
-      <ThemedText style={styles.recipeDescription} numberOfLines={2}>
+      <ThemedText style={styles.recipeDescription}>
         {recipe.description}
       </ThemedText>
 
-      {recipe.tags && recipe.tags.length > 0 && (
-        <View style={styles.tagsContainer}>
-          {recipe.tags.slice(0, 3).map((tag, index) => (
-            <View key={index} style={styles.tag}>
-              <ThemedText style={styles.tagText}>{tag}</ThemedText>
-            </View>
-          ))}
+      <ThemedView style={[
+        styles.mealInfo,
+        { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f8f8f8' }
+      ]}>
+        <View style={styles.infoRow}>
+          <IconSymbol name="clock" size={16} color="#999" style={styles.infoIcon} />
+          <ThemedText style={styles.infoLabel}>Prep:</ThemedText>
+          <ThemedText style={styles.infoValue}>{recipe.prepTime} min</ThemedText>
         </View>
-      )}
+        <View style={styles.infoRow}>
+          <IconSymbol name="flame" size={16} color="#999" style={styles.infoIcon} />
+          <ThemedText style={styles.infoLabel}>Cook:</ThemedText>
+          <ThemedText style={styles.infoValue}>{recipe.cookTime} min</ThemedText>
+        </View>
+        <View style={styles.infoRow}>
+          <IconSymbol name="fork.knife" size={16} color="#999" style={styles.infoIcon} />
+          <ThemedText style={styles.infoLabel}>Servings:</ThemedText>
+          <ThemedText style={styles.infoValue}>{recipe.servings}</ThemedText>
+        </View>
+      </ThemedView>
 
-      <View style={styles.recipeStats}>
-        <View style={styles.statItem}>
-          <IconSymbol name="clock" size={18} color="#007AFF" />
-          <ThemedText style={styles.statValue}>
-            {recipe.prepTime} + {recipe.cookTime}
-          </ThemedText>
+      <ThemedView style={styles.nutritionGrid}>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Calories</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{recipe.nutrition.calories}</ThemedText>
         </View>
-        <View style={styles.statItem}>
-          <IconSymbol name="restaurant" size={18} color="#007AFF" />
-          <ThemedText style={styles.statValue}>{recipe.servings} servings</ThemedText>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Protein</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{recipe.nutrition.protein}g</ThemedText>
         </View>
-        <View style={styles.statItem}>
-          <IconSymbol name="flame" size={18} color="#007AFF" />
-          <ThemedText style={styles.statValue}>{recipe.nutrition.calories} cal</ThemedText>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Carbs</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{recipe.nutrition.carbs}g</ThemedText>
         </View>
-      </View>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Fat</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{recipe.nutrition.fat}g</ThemedText>
+        </View>
+      </ThemedView>
 
       <View style={styles.buttonRow}>
         <Pressable
-          style={({ pressed }) => [styles.viewButton, pressed && styles.buttonPressed]}
+          style={({ pressed }) => [
+            styles.detailButton,
+            { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' },
+            pressed && styles.buttonPressed,
+          ]}
           onPress={() => setSelectedRecipe(recipe)}>
-          <ThemedText style={styles.viewButtonText}>View Recipe</ThemedText>
+          <ThemedText style={styles.detailButtonText}>View Details</ThemedText>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
           onPress={() => recipe.id && handleDeleteAIRecipe(recipe.id)}>
-          <IconSymbol name="delete" size={18} color="#fff" />
+          <IconSymbol name="trash" size={16} color="#fff" style={styles.buttonIcon} />
+          <ThemedText style={styles.deleteButtonText}>Delete</ThemedText>
         </Pressable>
       </View>
     </ThemedView>
   );
 
   const renderMealDBRecipeCard = (recipe: any) => (
-    <ThemedView key={recipe.id} style={styles.recipeCard}>
+    <ThemedView key={recipe.id} style={[
+      styles.recipeCard,
+      { 
+        backgroundColor: colorScheme === 'dark' ? '#1C1C1E' : '#fff',
+        borderColor: colorScheme === 'dark' ? '#2C2C2E' : 'rgba(128, 128, 128, 0.2)'
+      }
+    ]}>
       <View style={styles.recipeHeader}>
         {recipe.mealThumb && (
           <Image source={{ uri: recipe.mealThumb }} style={styles.recipeImage} />
         )}
         <View style={styles.recipeHeaderLeft}>
-          <ThemedText type="subtitle" style={styles.recipeName}>
+          <ThemedText style={styles.recipeName}>
             {recipe.mealName}
           </ThemedText>
-          <View style={[styles.sourceBadge, styles.mealDBBadge]}>
-            <IconSymbol name="book.fill" size={12} color="#34C759" style={styles.badgeIcon} />
-            <ThemedText style={styles.sourceBadgeText}>MealDB</ThemedText>
+          <View style={styles.mealDBInfo}>
+            {recipe.category && (
+              <View style={[styles.infoPill, { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' }]}>
+                <ThemedText style={styles.infoPillText}>{recipe.category}</ThemedText>
+              </View>
+            )}
+            {recipe.area && (
+              <View style={[styles.infoPill, { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' }]}>
+                <ThemedText style={styles.infoPillText}>{recipe.area}</ThemedText>
+              </View>
+            )}
           </View>
         </View>
       </View>
 
-      <View style={styles.mealDBInfo}>
-        {recipe.category && (
-          <View style={styles.infoPill}>
-            <ThemedText style={styles.infoPillText}>{recipe.category}</ThemedText>
-          </View>
-        )}
-        {recipe.area && (
-          <View style={styles.infoPill}>
-            <ThemedText style={styles.infoPillText}>{recipe.area}</ThemedText>
-          </View>
-        )}
-      </View>
-
       <View style={styles.buttonRow}>
         <Pressable
-          style={({ pressed }) => [styles.viewButton, pressed && styles.buttonPressed]}
+          style={({ pressed }) => [
+            styles.detailButton,
+            { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' },
+            pressed && styles.buttonPressed,
+          ]}
           onPress={() => router.push(`/meal-detail?id=${recipe.mealId}`)}>
-          <ThemedText style={styles.viewButtonText}>View Recipe</ThemedText>
+          <ThemedText style={styles.detailButtonText}>View Details</ThemedText>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
           onPress={() => handleDeleteMealDBRecipe(recipe.id)}>
-          <IconSymbol name="delete" size={18} color="#fff" />
+          <IconSymbol name="trash" size={16} color="#fff" style={styles.buttonIcon} />
+          <ThemedText style={styles.deleteButtonText}>Delete</ThemedText>
         </Pressable>
       </View>
     </ThemedView>
@@ -295,9 +330,15 @@ export default function RecipeBookScreen() {
 
       <ThemedView style={styles.searchSection}>
         <TextInput
-          style={styles.searchInput}
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(120, 120, 128, 0.12)',
+              color: colorScheme === 'dark' ? '#fff' : '#000',
+            },
+          ]}
           placeholder="Search recipes..."
-          placeholderTextColor="#999"
+          placeholderTextColor={colorScheme === 'dark' ? '#666' : '#999'}
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCapitalize="none"
@@ -460,11 +501,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   filterButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
     marginRight: 10,
-    backgroundColor: 'rgba(128, 128, 128, 0.2)',
+    backgroundColor: 'rgba(128, 128, 128, 0.15)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -473,7 +514,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
   },
   filterButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     opacity: 0.7,
   },
@@ -485,17 +526,16 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   searchSection: {
-    paddingHorizontal: 20,
-    marginBottom: 10,
+    paddingHorizontal: 0,
+    marginBottom: 0,
   },
   searchInput: {
-    height: 44,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    marginHorizontal: 20,
+    marginVertical: 10,
+    padding: 16,
     fontSize: 16,
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(128, 128, 128, 0.2)',
+    borderRadius: 12,
+    borderWidth: 0,
   },
   scrollView: {
     flex: 1,
@@ -513,20 +553,18 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   recipeCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 5,
     borderWidth: 1,
     borderColor: 'rgba(128, 128, 128, 0.2)',
   },
   recipeHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     marginBottom: 12,
   },
   recipeHeaderLeft: {
@@ -537,87 +575,93 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 12,
     marginRight: 12,
+    marginBottom: 8,
   },
   recipeName: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
-    marginBottom: 6,
-  },
-  sourceBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0, 122, 255, 0.15)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  mealDBBadge: {
-    backgroundColor: 'rgba(52, 199, 89, 0.15)',
-  },
-  badgeIcon: {
-    marginRight: 2,
-  },
-  sourceBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#007AFF',
+    marginBottom: 8,
   },
   recipeDescription: {
-    fontSize: 14,
+    fontSize: 15,
     opacity: 0.75,
-    marginBottom: 12,
-    lineHeight: 20,
+    marginBottom: 16,
+    lineHeight: 22,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 12,
+    marginTop: 6,
   },
   tag: {
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   tagText: {
-    color: '#007AFF',
     fontSize: 12,
     fontWeight: '500',
   },
-  recipeStats: {
+  mealInfo: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 12,
-    borderTopWidth: 1,
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderColor: 'rgba(128, 128, 128, 0.2)',
-    marginBottom: 12,
+    borderBottomColor: 'rgba(128, 128, 128, 0.2)',
+    padding: 12,
+    borderRadius: 12,
+    opacity: 0.9,
   },
-  statItem: {
+  infoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  statLabel: {
-    fontSize: 16,
+  infoIcon: {
+    marginRight: 2,
   },
-  statValue: {
-    fontSize: 12,
+  infoLabel: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  infoValue: {
+    fontSize: 13,
     fontWeight: '600',
-    opacity: 0.8,
+  },
+  nutritionGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.2)',
+    opacity: 0.95,
+  },
+  nutritionItemLarge: {
+    alignItems: 'center',
+  },
+  nutritionLabelLarge: {
+    fontSize: 11,
+    opacity: 0.6,
+    marginBottom: 2,
+  },
+  nutritionValueLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#007AFF',
   },
   mealDBInfo: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 12,
+    marginTop: 8,
   },
   infoPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: 'rgba(128, 128, 128, 0.15)',
   },
   infoPillText: {
     fontSize: 12,
@@ -627,32 +671,34 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: 8,
   },
-  viewButton: {
+  detailButton: {
     flex: 1,
-    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  detailButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: '#FF3B30',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
   },
-  viewButtonText: {
+  deleteButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
-  deleteButton: {
-    backgroundColor: '#FF3B30',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 50,
-  },
-  deleteButtonText: {
-    fontSize: 18,
+  buttonIcon: {
+    marginRight: 6,
   },
   buttonPressed: {
     opacity: 0.7,
