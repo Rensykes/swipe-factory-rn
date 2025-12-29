@@ -1,5 +1,6 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { MealIdea } from '@/services/openaiService';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { deleteSavedMeal, loadSavedMeals } from '@/store/mealPlannerSlice';
@@ -124,7 +125,8 @@ export default function RecipeBookScreen() {
             {recipe.name}
           </ThemedText>
           <View style={styles.sourceBadge}>
-            <ThemedText style={styles.sourceBadgeText}>✨ AI Generated</ThemedText>
+            <IconSymbol name="sparkles" size={12} color="#007AFF" style={styles.badgeIcon} />
+            <ThemedText style={styles.sourceBadgeText}>AI Generated</ThemedText>
           </View>
         </View>
       </View>
@@ -145,17 +147,17 @@ export default function RecipeBookScreen() {
 
       <View style={styles.recipeStats}>
         <View style={styles.statItem}>
-          <ThemedText style={styles.statLabel}>⏱️</ThemedText>
+          <IconSymbol name="clock" size={18} color="#007AFF" />
           <ThemedText style={styles.statValue}>
             {recipe.prepTime} + {recipe.cookTime}
           </ThemedText>
         </View>
         <View style={styles.statItem}>
-          <ThemedText style={styles.statLabel}>🍽️</ThemedText>
+          <IconSymbol name="restaurant" size={18} color="#007AFF" />
           <ThemedText style={styles.statValue}>{recipe.servings} servings</ThemedText>
         </View>
         <View style={styles.statItem}>
-          <ThemedText style={styles.statLabel}>🔥</ThemedText>
+          <IconSymbol name="flame" size={18} color="#007AFF" />
           <ThemedText style={styles.statValue}>{recipe.nutrition.calories} cal</ThemedText>
         </View>
       </View>
@@ -169,7 +171,7 @@ export default function RecipeBookScreen() {
         <Pressable
           style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
           onPress={() => recipe.id && handleDeleteAIRecipe(recipe.id)}>
-          <ThemedText style={styles.deleteButtonText}>🗑️</ThemedText>
+          <IconSymbol name="delete" size={18} color="#fff" />
         </Pressable>
       </View>
     </ThemedView>
@@ -186,7 +188,8 @@ export default function RecipeBookScreen() {
             {recipe.mealName}
           </ThemedText>
           <View style={[styles.sourceBadge, styles.mealDBBadge]}>
-            <ThemedText style={styles.sourceBadgeText}>📚 MealDB</ThemedText>
+            <IconSymbol name="book.fill" size={12} color="#34C759" style={styles.badgeIcon} />
+            <ThemedText style={styles.sourceBadgeText}>MealDB</ThemedText>
           </View>
         </View>
       </View>
@@ -213,7 +216,7 @@ export default function RecipeBookScreen() {
         <Pressable
           style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
           onPress={() => handleDeleteMealDBRecipe(recipe.id)}>
-          <ThemedText style={styles.deleteButtonText}>🗑️</ThemedText>
+          <IconSymbol name="delete" size={18} color="#fff" />
         </Pressable>
       </View>
     </ThemedView>
@@ -252,12 +255,18 @@ export default function RecipeBookScreen() {
               pressed && styles.buttonPressed,
             ]}
             onPress={() => setSourceFilter('ai')}>
+            <IconSymbol 
+              name="sparkles" 
+              size={14} 
+              color={sourceFilter === 'ai' ? '#fff' : '#666'} 
+              style={styles.filterIcon} 
+            />
             <ThemedText
               style={[
                 styles.filterButtonText,
                 sourceFilter === 'ai' && styles.filterButtonTextActive,
               ]}>
-              ✨ AI Recipes
+              AI Recipes
             </ThemedText>
           </Pressable>
           <Pressable
@@ -267,12 +276,18 @@ export default function RecipeBookScreen() {
               pressed && styles.buttonPressed,
             ]}
             onPress={() => setSourceFilter('mealdb')}>
+            <IconSymbol 
+              name="book.fill" 
+              size={14} 
+              color={sourceFilter === 'mealdb' ? '#fff' : '#666'} 
+              style={styles.filterIcon} 
+            />
             <ThemedText
               style={[
                 styles.filterButtonText,
                 sourceFilter === 'mealdb' && styles.filterButtonTextActive,
               ]}>
-              📚 MealDB Recipes
+              MealDB Recipes
             </ThemedText>
           </Pressable>
         </ScrollView>
@@ -299,7 +314,7 @@ export default function RecipeBookScreen() {
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {totalRecipes === 0 ? (
             <View style={styles.emptyState}>
-              <ThemedText style={styles.emptyIcon}>📖</ThemedText>
+              <IconSymbol name="book.fill" size={64} color="#999" />
               <ThemedText style={styles.emptyTitle}>No Recipes Yet</ThemedText>
               <ThemedText style={styles.emptyText}>
                 {searchQuery
@@ -450,6 +465,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
     backgroundColor: 'rgba(128, 128, 128, 0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   filterButtonActive: {
     backgroundColor: '#007AFF',
@@ -462,6 +480,9 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: '#fff',
     opacity: 1,
+  },
+  filterIcon: {
+    marginRight: 4,
   },
   searchSection: {
     paddingHorizontal: 20,
@@ -528,9 +549,15 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     backgroundColor: 'rgba(0, 122, 255, 0.15)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   mealDBBadge: {
     backgroundColor: 'rgba(52, 199, 89, 0.15)',
+  },
+  badgeIcon: {
+    marginRight: 2,
   },
   sourceBadgeText: {
     fontSize: 11,
@@ -607,6 +634,9 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
   },
   viewButtonText: {
     color: '#fff',
@@ -618,6 +648,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
     minWidth: 50,
   },
   deleteButtonText: {

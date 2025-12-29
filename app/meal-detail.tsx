@@ -1,6 +1,7 @@
 import AddToShoppingListModal from '@/components/add-to-shopping-list-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { firestoreService } from '@/services/firestoreService';
 import { useAppSelector } from '@/store/hooks';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -124,7 +125,8 @@ export default function MealDetailScreen() {
                 pressed && styles.youtubeButtonPressed,
               ]}
               onPress={handleOpenYoutube}>
-              <ThemedText style={styles.youtubeButtonText}>▶ Watch on YouTube</ThemedText>
+              <IconSymbol name="play.fill" size={16} color="#fff" style={styles.buttonIcon} />
+              <ThemedText style={styles.youtubeButtonText}>Watch on YouTube</ThemedText>
             </Pressable>
           )}
 
@@ -136,8 +138,9 @@ export default function MealDetailScreen() {
             ]}
             onPress={handleSaveToRecipeBook}
             disabled={isSaving}>
+            {!isSaving && <IconSymbol name="book.fill" size={16} color="#fff" style={styles.buttonIcon} />}
             <ThemedText style={styles.saveButtonText}>
-              {isSaving ? '💾 Saving...' : '📖 Save to Recipe Book'}
+              {isSaving ? 'Saving...' : 'Save to Recipe Book'}
             </ThemedText>
           </Pressable>
 
@@ -161,8 +164,9 @@ export default function MealDetailScreen() {
                 pressed && styles.addToListButtonPressed,
               ]}
               onPress={() => setShowShoppingListModal(true)}>
+              <IconSymbol name="cart.fill" size={16} color="#007AFF" style={styles.buttonIcon} />
               <ThemedText style={styles.addToListButtonText}>
-                🛒 Add to Shopping List
+                Add to Shopping List
               </ThemedText>
             </Pressable>
           </View>
@@ -248,6 +252,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   youtubeButtonPressed: {
     opacity: 0.7,
@@ -257,6 +264,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  buttonIcon: {
+    marginRight: 4,
+  },
   saveButton: {
     backgroundColor: '#34C759',
     paddingVertical: 14,
@@ -264,6 +274,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   saveButtonPressed: {
     opacity: 0.7,
@@ -350,6 +363,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   addToListButtonPressed: {
     opacity: 0.7,

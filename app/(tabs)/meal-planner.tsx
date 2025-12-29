@@ -1,5 +1,6 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { MealIdea } from '@/services/openaiService';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
@@ -129,15 +130,18 @@ export default function MealPlannerScreen() {
 
       <ThemedView style={styles.mealInfo}>
         <View style={styles.infoRow}>
-          <ThemedText style={styles.infoLabel}>⏱️ Prep:</ThemedText>
+          <IconSymbol name="clock" size={16} color="#999" style={styles.infoIcon} />
+          <ThemedText style={styles.infoLabel}>Prep:</ThemedText>
           <ThemedText style={styles.infoValue}>{meal.prepTime} min</ThemedText>
         </View>
         <View style={styles.infoRow}>
-          <ThemedText style={styles.infoLabel}>🍳 Cook:</ThemedText>
+          <IconSymbol name="flame" size={16} color="#999" style={styles.infoIcon} />
+          <ThemedText style={styles.infoLabel}>Cook:</ThemedText>
           <ThemedText style={styles.infoValue}>{meal.cookTime} min</ThemedText>
         </View>
         <View style={styles.infoRow}>
-          <ThemedText style={styles.infoLabel}>🍽️ Servings:</ThemedText>
+          <IconSymbol name="restaurant" size={16} color="#999" style={styles.infoIcon} />
+          <ThemedText style={styles.infoLabel}>Servings:</ThemedText>
           <ThemedText style={styles.infoValue}>{meal.servings}</ThemedText>
         </View>
       </ThemedView>
@@ -171,13 +175,15 @@ export default function MealPlannerScreen() {
           <Pressable
             style={({ pressed }) => [styles.saveButton, pressed && styles.buttonPressed]}
             onPress={() => handleSaveMeal(meal)}>
-            <ThemedText style={styles.saveButtonText}>💾 Save</ThemedText>
+            <IconSymbol name="bookmark" size={16} color="#fff" style={styles.buttonIcon} />
+            <ThemedText style={styles.saveButtonText}>Save</ThemedText>
           </Pressable>
         ) : (
           <Pressable
             style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
             onPress={() => meal.id && handleDeleteMeal(meal.id)}>
-            <ThemedText style={styles.deleteButtonText}>🗑️ Delete</ThemedText>
+            <IconSymbol name="delete" size={16} color="#fff" style={styles.buttonIcon} />
+            <ThemedText style={styles.deleteButtonText}>Delete</ThemedText>
           </Pressable>
         )}
       </View>
@@ -205,9 +211,12 @@ export default function MealPlannerScreen() {
           {isGenerating ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <ThemedText style={styles.generateButtonText}>
-              ✨ Generate Meal Ideas ({selectedIngredients.length} ingredients)
-            </ThemedText>
+            <>
+              <IconSymbol name="sparkles" size={20} color="#fff" style={styles.buttonIcon} />
+              <ThemedText style={styles.generateButtonText}>
+                Generate Meal Ideas ({selectedIngredients.length} ingredients)
+              </ThemedText>
+            </>
           )}
         </Pressable>
 
@@ -218,12 +227,18 @@ export default function MealPlannerScreen() {
             showSavedMeals && styles.activeToggleButton,
           ]}
           onPress={() => setShowSavedMeals(!showSavedMeals)}>
+          <IconSymbol 
+            name={showSavedMeals ? "list.bullet" : "bookmark"} 
+            size={16} 
+            color={showSavedMeals ? "#fff" : "#333"} 
+            style={styles.buttonIcon} 
+          />
           <ThemedText
             style={[
               styles.toggleButtonText,
               showSavedMeals && styles.activeToggleButtonText,
             ]}>
-            {showSavedMeals ? '📋 View Generated' : '💾 View Saved'}
+            {showSavedMeals ? 'View Generated' : 'View Saved'}
           </ThemedText>
         </Pressable>
       </View>
@@ -244,7 +259,7 @@ export default function MealPlannerScreen() {
           <>
             {generatedIdeas.length === 0 && !isGenerating && (
               <View style={styles.emptyState}>
-                <ThemedText style={styles.emptyIcon}>🍽️</ThemedText>
+                <IconSymbol name="restaurant" size={64} color="#999" />
                 <ThemedText style={styles.emptyTitle}>No Meal Ideas Yet</ThemedText>
                 <ThemedText style={styles.emptyText}>
                   Select ingredients and tap &quot;Generate Meal Ideas&quot; to get personalized meal
@@ -270,7 +285,7 @@ export default function MealPlannerScreen() {
           <>
             {savedMeals.length === 0 && !isLoading && (
               <View style={styles.emptyState}>
-                <ThemedText style={styles.emptyIcon}>💾</ThemedText>
+                <IconSymbol name="bookmark" size={64} color="#999" />
                 <ThemedText style={styles.emptyTitle}>No Saved Meals</ThemedText>
                 <ThemedText style={styles.emptyText}>
                   Save your favorite meal ideas to access them later.
@@ -407,11 +422,17 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   generateButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonIcon: {
+    marginRight: 6,
   },
   toggleButton: {
     backgroundColor: '#f0f0f0',
@@ -419,6 +440,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     minWidth: 140,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
   },
   activeToggleButton: {
     backgroundColor: '#007AFF',
@@ -502,6 +526,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  infoIcon: {
+    marginRight: 2,
+  },
   infoLabel: {
     fontSize: 13,
     opacity: 0.7,
@@ -547,15 +574,14 @@ const styles = StyleSheet.create({
   },
   detailButtonText: {
     color: '#333',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   saveButton: {
     flex: 1,
     backgroundColor: '#34C759',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   saveButtonText: {
     color: '#fff',
@@ -568,9 +594,14 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   deleteButtonText: {
     color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },

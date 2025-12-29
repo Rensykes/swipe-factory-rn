@@ -1,5 +1,6 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import type { IngredientWithNutrition } from '@/store/ingredientsSlice';
 import {
@@ -53,7 +54,7 @@ const IngredientCard = memo(({
             pressed && styles.infoButtonPressed,
           ]}
           onPress={() => onShowDetail(ingredient)}>
-          <ThemedText style={styles.infoButtonText}>ℹ️</ThemedText>
+          <IconSymbol name="info.circle" size={20} color="#007AFF" />
         </Pressable>
       </View>
       {ingredient.nutrition && (
@@ -291,9 +292,11 @@ export default function IngredientsScreen() {
                         style={styles.accordionHeader}
                         onPress={toggleDescription}>
                         <ThemedText style={styles.accordionTitle}>Description</ThemedText>
-                        <ThemedText style={styles.accordionIcon}>
-                          {isDescriptionExpanded ? '▼' : '▶'}
-                        </ThemedText>
+                        <IconSymbol 
+                          name={isDescriptionExpanded ? "chevron.down" : "chevron.right"} 
+                          size={16} 
+                          color="#666" 
+                        />
                       </Pressable>
                       {isDescriptionExpanded && (
                         <View style={styles.accordionContent}>

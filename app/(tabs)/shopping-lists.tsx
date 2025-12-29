@@ -14,6 +14,8 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Keyboard,
+    KeyboardAvoidingView,
     Linking,
     Modal,
     Platform,
@@ -22,6 +24,7 @@ import {
     Share,
     StyleSheet,
     TextInput,
+    TouchableWithoutFeedback,
     View,
 } from 'react-native';
 
@@ -82,6 +85,7 @@ export default function ShoppingListsScreen() {
   const handleCreateList = async () => {
     if (!user || !newListName.trim()) return;
     
+    Keyboard.dismiss();
     await dispatch(createShoppingList({ userId: user.uid, name: newListName, items: [] }));
     setNewListName('');
     setShowCreateModal(false);
@@ -353,44 +357,55 @@ export default function ShoppingListsScreen() {
         transparent
         animationType="slide"
         onRequestClose={() => setShowCreateModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Create Shopping List</ThemedText>
-              <Pressable
-                onPress={() => {
-                  setShowCreateModal(false);
-                  setNewListName('');
-                }}
-                style={styles.closeButton}>
-                <ThemedText style={styles.closeButtonText}>✕</ThemedText>
-              </Pressable>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+                <ThemedView style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <ThemedText style={styles.modalTitle}>Create Shopping List</ThemedText>
+                    <Pressable
+                      onPress={() => {
+                        setShowCreateModal(false);
+                        setNewListName('');
+                      }}
+                      style={styles.closeButton}>
+                      <ThemedText style={styles.closeButtonText}>✕</ThemedText>
+                    </Pressable>
+                  </View>
 
-            <View style={styles.modalBody}>
-              <ThemedText style={styles.label}>List Name</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={newListName}
-                onChangeText={setNewListName}
-                placeholder="e.g., Weekend Cooking"
-                placeholderTextColor="#666"
-                autoFocus
-              />
+                  <View style={styles.modalBody}>
+                    <ThemedText style={styles.label}>List Name</ThemedText>
+                    <TextInput
+                      style={styles.input}
+                      value={newListName}
+                      onChangeText={setNewListName}
+                      placeholder="e.g., Weekend Cooking"
+                      placeholderTextColor="#666"
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={handleCreateList}
+                      blurOnSubmit={true}
+                    />
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.confirmButton,
-                  pressed && styles.confirmButtonPressed,
-                  !newListName.trim() && styles.disabledButton,
-                ]}
-                onPress={handleCreateList}
-                disabled={!newListName.trim()}>
-                <ThemedText style={styles.confirmButtonText}>Create List</ThemedText>
-              </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.confirmButton,
+                        pressed && styles.confirmButtonPressed,
+                        !newListName.trim() && styles.disabledButton,
+                      ]}
+                      onPress={handleCreateList}
+                      disabled={!newListName.trim()}>
+                      <ThemedText style={styles.confirmButtonText}>Create List</ThemedText>
+                    </Pressable>
+                  </View>
+                </ThemedView>
+              </TouchableWithoutFeedback>
             </View>
-          </ThemedView>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </ThemedView>
   );

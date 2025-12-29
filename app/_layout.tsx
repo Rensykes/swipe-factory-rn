@@ -1,6 +1,10 @@
 import { auth } from '@/config/firebase';
 import { setUser } from '@/store/authSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { fetchIngredients } from '@/store/ingredientsSlice';
+import { loadSavedMeals } from '@/store/mealPlannerSlice';
+import { loadProfile } from '@/store/profileSlice';
+import { fetchShoppingLists } from '@/store/shoppingListsSlice';
 import { store } from '@/store/store';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -26,6 +30,14 @@ function RootLayoutNav() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       dispatch(setUser(firebaseUser));
+      
+      // Load all user data when authenticated
+      if (firebaseUser) {
+        dispatch(loadProfile());
+        dispatch(fetchIngredients());
+        dispatch(fetchShoppingLists(firebaseUser.uid));
+        dispatch(loadSavedMeals());
+      }
     });
 
     return unsubscribe;

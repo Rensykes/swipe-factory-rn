@@ -2,6 +2,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { StyleSheet, View } from 'react-native';
 import { DashboardCard } from './dashboard-card';
 import { ThemedText } from './themed-text';
+import { IconSymbol } from './ui/icon-symbol';
 
 interface StatCardProps {
   title: string;
@@ -18,7 +19,7 @@ export function StatCard({ title, value, subtitle, icon, color }: StatCardProps)
   return (
     <DashboardCard style={styles.container}>
       <View style={styles.header}>
-        {icon && <ThemedText style={[styles.icon, { color: iconColor }]}>{icon}</ThemedText>}
+        {icon && <IconSymbol name={icon} size={24} color={iconColor} />}
         <ThemedText type="defaultSemiBold" style={styles.title}>
           {title}
         </ThemedText>

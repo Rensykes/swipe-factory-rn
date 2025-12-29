@@ -3,6 +3,7 @@ import { QuickActions } from '@/components/quick-actions';
 import { StatCard } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAppSelector } from '@/store/hooks';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -62,7 +63,7 @@ export default function HomeScreen() {
               </ThemedText>
             </View>
             <View style={styles.profileIcon}>
-              <ThemedText style={styles.profileEmoji}>👨‍🍳</ThemedText>
+              <IconSymbol name="person.fill" size={32} color="#fff" />
             </View>
           </View>
         </LinearGradient>
@@ -77,14 +78,14 @@ export default function HomeScreen() {
               title="Target Calories"
               value={todayCalories > 0 ? todayCalories : '--'}
               subtitle={todayCalories > 0 ? 'kcal/day' : 'Set up profile'}
-              icon="🔥"
+              icon="flame"
               color="#FF6B6B"
             />
             <StatCard
               title="Protein Goal"
               value={targetProtein > 0 ? `${targetProtein}g` : '--'}
               subtitle={targetProtein > 0 ? 'per day' : 'Complete profile'}
-              icon="💪"
+              icon="dumbbell"
               color="#4ECDC4"
             />
           </View>
@@ -93,14 +94,14 @@ export default function HomeScreen() {
               title="Ingredients"
               value={ingredientsCount}
               subtitle={ingredientsCount > 0 ? 'selected' : 'Add some'}
-              icon="🥬"
+              icon="leaf"
               color="#95E1D3"
             />
             <StatCard
               title="Meals Found"
               value={mealsCount}
               subtitle={mealsCount > 0 ? 'available' : 'Search now'}
-              icon="🍽️"
+              icon="restaurant"
               color="#F38181"
             />
           </View>
@@ -138,11 +139,7 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/meal-detail?id=${meal.idMeal}`)}>
                   <DashboardCard style={styles.mealCardInner}>
                     <View style={styles.mealImageContainer}>
-                      {meal.strMealThumb ? (
-                        <ThemedText style={styles.mealPlaceholder}>🍽️</ThemedText>
-                      ) : (
-                        <ThemedText style={styles.mealPlaceholder}>🍽️</ThemedText>
-                      )}
+                      <IconSymbol name="restaurant" size={48} color="#999" />
                     </View>
                     <ThemedText 
                       type="defaultSemiBold" 
