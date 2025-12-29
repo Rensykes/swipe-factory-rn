@@ -1,5 +1,8 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import { useState } from 'react';
+import { Alert, Platform, Pressable, StyleSheet } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -8,6 +11,48 @@ import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 
 export default function HomeScreen() {
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+
+  const openCamera = async () => {
+    // Request camera permissions
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Camera permission is required to take pictures.');
+      return;
+    }
+
+    // Request media library permissions
+    const mediaLibraryPermission = await MediaLibrary.requestPermissionsAsync();
+    
+    if (mediaLibraryPermission.status !== 'granted') {
+      Alert.alert('Permission Denied', 'Media library permission is required to save pictures.');
+      return;
+    }
+
+    // Launch camera
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const uri = result.assets[0].uri;
+      setCapturedImage(uri);
+      
+      // Save to device media library
+      try {
+        const asset = await MediaLibrary.createAssetAsync(uri);
+        await MediaLibrary.createAlbumAsync('SwipeFactory', asset, false);
+        Alert.alert('Success', 'Picture saved to your gallery!');
+      } catch (error) {
+        Alert.alert('Error', 'Failed to save picture to gallery.');
+        console.error('Save error:', error);
+      }
+    }
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -20,6 +65,23 @@ export default function HomeScreen() {
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Take a Picture</ThemedText>
+        <Pressable
+          style={({ pressed }) => [
+            styles.cameraButton,
+            pressed && styles.cameraButtonPressed,
+          ]}
+          onPress={openCamera}>
+          <ThemedText style={styles.cameraButtonText}>📷 Open Camera</ThemedText>
+        </Pressable>
+        {capturedImage && (
+          <Image
+            source={{ uri: capturedImage }}
+            style={styles.capturedImage}
+          />
+        )}
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
@@ -94,5 +156,26 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     position: 'absolute',
+  },
+  cameraButton: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraButtonPressed: {
+    opacity: 0.7,
+  },
+  cameraButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  capturedImage: {
+    width: '100%',
+    height: 300,
+    borderRadius: 8,
+    marginTop: 8,
   },
 });
