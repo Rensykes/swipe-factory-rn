@@ -1,8 +1,17 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MealIdea } from '@/services/openaiService';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import type { IngredientWithNutrition } from '@/store/ingredientsSlice';
+import {
+    clearSelection,
+    fetchIngredients,
+    removeIngredient,
+    setSearchQuery,
+    toggleIngredient,
+} from '@/store/ingredientsSlice';
 import {
     clearError,
     clearGeneratedIdeas,
@@ -11,33 +20,129 @@ import {
     loadSavedMeals,
     saveMealIdea,
 } from '@/store/mealPlannerSlice';
-import React, { useEffect, useState } from 'react';
+import { searchMealsByIngredients } from '@/store/mealsSlice';
+import { useRouter } from 'expo-router';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    FlatList,
     Modal,
     Pressable,
     ScrollView,
     StyleSheet,
+    TextInput,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Memoized ingredient card component for performance
+const IngredientCard = memo(({ 
+  ingredient, 
+  isSelected, 
+  onToggle,
+  colorScheme,
+}: { 
+  ingredient: IngredientWithNutrition; 
+  isSelected: boolean; 
+  onToggle: (name: string) => void;
+  colorScheme: 'light' | 'dark' | null | undefined;
+}) => (
+  <Pressable
+    style={({ pressed }) => [
+      {
+        padding: 16,
+        borderRadius: 12,
+        backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f8f8f8',
+        borderWidth: isSelected ? 2 : 1.5,
+        borderColor: isSelected ? '#007AFF' : (colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'),
+      },
+      pressed && { opacity: 0.8 },
+    ]}
+    onPress={() => onToggle(ingredient.strIngredient)}>
+    <View style={styles.ingredientContent}>
+      <ThemedText style={[
+        styles.ingredientName,
+        isSelected && styles.ingredientNameSelected,
+      ]}>
+        {ingredient.strIngredient}
+      </ThemedText>
+      {isSelected && (
+        <ThemedText style={styles.checkmark}>✓</ThemedText>
+      )}
+    </View>
+    {ingredient.nutrition && (
+      <View style={styles.nutritionContainer}>
+        <View style={styles.nutritionRow}>
+          <View style={styles.nutritionItem}>
+            <ThemedText style={styles.nutritionLabel}>Cal</ThemedText>
+            <ThemedText style={styles.nutritionValue}>{ingredient.nutrition.calories}</ThemedText>
+          </View>
+          <View style={styles.nutritionItem}>
+            <ThemedText style={styles.nutritionLabel}>Protein</ThemedText>
+            <ThemedText style={styles.nutritionValue}>{ingredient.nutrition.protein}</ThemedText>
+          </View>
+          <View style={styles.nutritionItem}>
+            <ThemedText style={styles.nutritionLabel}>Carbs</ThemedText>
+            <ThemedText style={styles.nutritionValue}>{ingredient.nutrition.carbs}</ThemedText>
+          </View>
+          <View style={styles.nutritionItem}>
+            <ThemedText style={styles.nutritionLabel}>Fat</ThemedText>
+            <ThemedText style={styles.nutritionValue}>{ingredient.nutrition.fat}</ThemedText>
+          </View>
+        </View>
+      </View>
+    )}
+  </Pressable>
+));
+
+IngredientCard.displayName = 'IngredientCard';
+
+type TabType = 'ingredients' | 'ai' | 'saved';
+
 export default function MealPlannerScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const { selectedIngredients, ingredients } = useAppSelector((state) => state.ingredients);
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const { selectedIngredients, filteredIngredients, searchQuery, ingredients, loading: ingredientsLoading, error: ingredientsError } = useAppSelector((state) => state.ingredients);
   const { profile } = useAppSelector((state) => state.profile);
   const { generatedIdeas, savedMeals, isGenerating, isLoading, error } = useAppSelector(
     (state) => state.mealPlanner
   );
 
+  const [activeTab, setActiveTab] = useState<TabType>('ingredients');
   const [selectedMealDetail, setSelectedMealDetail] = useState<MealIdea | null>(null);
-  const [showSavedMeals, setShowSavedMeals] = useState(false);
 
   useEffect(() => {
+    dispatch(fetchIngredients());
     dispatch(loadSavedMeals());
   }, [dispatch]);
+
+  const handleToggleIngredient = useCallback((ingredientName: string) => {
+    dispatch(toggleIngredient(ingredientName));
+  }, [dispatch]);
+
+  const handleRemoveIngredient = useCallback((ingredientName: string) => {
+    dispatch(removeIngredient(ingredientName));
+  }, [dispatch]);
+
+  const handleClearSelection = useCallback(() => {
+    dispatch(clearSelection());
+  }, [dispatch]);
+
+  const handleSearchChange = useCallback((text: string) => {
+    dispatch(setSearchQuery(text));
+  }, [dispatch]);
+
+  const handleSearchMealDBRecipes = useCallback(() => {
+    if (selectedIngredients.length === 0) {
+      Alert.alert('No Ingredients', 'Please select at least one ingredient first.');
+      return;
+    }
+    dispatch(searchMealsByIngredients(selectedIngredients));
+    router.push('/meals');
+  }, [dispatch, router, selectedIngredients]);
 
   const handleGenerateMeals = async () => {
     if (selectedIngredients.length === 0) {
@@ -70,6 +175,7 @@ export default function MealPlannerScreen() {
           count: 3, // Generate 3 meal ideas
         })
       ).unwrap();
+      setActiveTab('ai'); // Switch to AI tab after generation
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to generate meal ideas');
     }
@@ -109,6 +215,12 @@ export default function MealPlannerScreen() {
     setSelectedMealDetail(null);
   };
 
+  const selectedSet = useMemo(() => new Set(selectedIngredients), [selectedIngredients]);
+
+  const retryFetch = useCallback(() => {
+    dispatch(fetchIngredients());
+  }, [dispatch]);
+
   const renderMealCard = (meal: MealIdea, isSaved: boolean = false) => (
     <ThemedView key={meal.id || meal.name} style={styles.mealCard}>
       <View style={styles.mealHeader}>
@@ -118,8 +230,8 @@ export default function MealPlannerScreen() {
         {meal.tags && meal.tags.length > 0 && (
           <View style={styles.tagsContainer}>
             {meal.tags.slice(0, 2).map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <ThemedText style={styles.tagText}>{tag}</ThemedText>
+              <View key={index} style={[styles.tag, { backgroundColor: colorScheme === 'dark' ? '#1C3A57' : '#e8f4ff' }]}>
+                <ThemedText style={[styles.tagText, { color: '#007AFF' }]}>{tag}</ThemedText>
               </View>
             ))}
           </View>
@@ -140,34 +252,38 @@ export default function MealPlannerScreen() {
           <ThemedText style={styles.infoValue}>{meal.cookTime} min</ThemedText>
         </View>
         <View style={styles.infoRow}>
-          <IconSymbol name="restaurant" size={16} color="#999" style={styles.infoIcon} />
+          <IconSymbol name="fork.knife" size={16} color="#999" style={styles.infoIcon} />
           <ThemedText style={styles.infoLabel}>Servings:</ThemedText>
           <ThemedText style={styles.infoValue}>{meal.servings}</ThemedText>
         </View>
       </ThemedView>
 
       <ThemedView style={styles.nutritionGrid}>
-        <View style={styles.nutritionItem}>
-          <ThemedText style={styles.nutritionLabel}>Calories</ThemedText>
-          <ThemedText style={styles.nutritionValue}>{meal.nutrition.calories}</ThemedText>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Calories</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{meal.nutrition.calories}</ThemedText>
         </View>
-        <View style={styles.nutritionItem}>
-          <ThemedText style={styles.nutritionLabel}>Protein</ThemedText>
-          <ThemedText style={styles.nutritionValue}>{meal.nutrition.protein}g</ThemedText>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Protein</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{meal.nutrition.protein}g</ThemedText>
         </View>
-        <View style={styles.nutritionItem}>
-          <ThemedText style={styles.nutritionLabel}>Carbs</ThemedText>
-          <ThemedText style={styles.nutritionValue}>{meal.nutrition.carbs}g</ThemedText>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Carbs</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{meal.nutrition.carbs}g</ThemedText>
         </View>
-        <View style={styles.nutritionItem}>
-          <ThemedText style={styles.nutritionLabel}>Fat</ThemedText>
-          <ThemedText style={styles.nutritionValue}>{meal.nutrition.fat}g</ThemedText>
+        <View style={styles.nutritionItemLarge}>
+          <ThemedText style={styles.nutritionLabelLarge}>Fat</ThemedText>
+          <ThemedText style={styles.nutritionValueLarge}>{meal.nutrition.fat}g</ThemedText>
         </View>
       </ThemedView>
 
       <View style={styles.buttonRow}>
         <Pressable
-          style={({ pressed }) => [styles.detailButton, pressed && styles.buttonPressed]}
+          style={({ pressed }) => [
+            styles.detailButton,
+            { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' },
+            pressed && styles.buttonPressed,
+          ]}
           onPress={() => showMealDetail(meal)}>
           <ThemedText style={styles.detailButtonText}>View Details</ThemedText>
         </Pressable>
@@ -182,7 +298,7 @@ export default function MealPlannerScreen() {
           <Pressable
             style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
             onPress={() => meal.id && handleDeleteMeal(meal.id)}>
-            <IconSymbol name="delete" size={16} color="#fff" style={styles.buttonIcon} />
+            <IconSymbol name="trash" size={16} color="#fff" style={styles.buttonIcon} />
             <ThemedText style={styles.deleteButtonText}>Delete</ThemedText>
           </Pressable>
         )}
@@ -195,50 +311,60 @@ export default function MealPlannerScreen() {
       <ThemedView style={styles.header}>
         <ThemedText type="title">Meal Planner</ThemedText>
         <ThemedText style={styles.subtitle}>
-          AI-powered meal ideas based on your ingredients and goals
+          Select ingredients and find or generate recipes
         </ThemedText>
       </ThemedView>
 
-      <View style={styles.topButtons}>
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
         <Pressable
           style={({ pressed }) => [
-            styles.generateButton,
-            pressed && styles.buttonPressed,
-            isGenerating && styles.disabledButton,
+            styles.tab,
+            { backgroundColor: activeTab === 'ingredients' ? '#007AFF' : (colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0') },
+            pressed && styles.tabPressed,
           ]}
-          onPress={handleGenerateMeals}
-          disabled={isGenerating}>
-          {isGenerating ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <IconSymbol name="sparkles" size={20} color="#fff" style={styles.buttonIcon} />
-              <ThemedText style={styles.generateButtonText}>
-                Generate Meal Ideas ({selectedIngredients.length} ingredients)
-              </ThemedText>
-            </>
+          onPress={() => setActiveTab('ingredients')}>
+          <IconSymbol name="carrot.fill" size={20} color={activeTab === 'ingredients' ? '#fff' : (colorScheme === 'dark' ? '#999' : '#666')} />
+          <ThemedText style={[
+            styles.tabText,
+            { color: activeTab === 'ingredients' ? '#fff' : (colorScheme === 'dark' ? '#999' : '#666') },
+          ]}>
+            Ingredients
+          </ThemedText>
+          {selectedIngredients.length > 0 && (
+            <View style={styles.badge}>
+              <ThemedText style={styles.badgeText}>{selectedIngredients.length}</ThemedText>
+            </View>
           )}
         </Pressable>
-
         <Pressable
           style={({ pressed }) => [
-            styles.toggleButton,
-            pressed && styles.buttonPressed,
-            showSavedMeals && styles.activeToggleButton,
+            styles.tab,
+            { backgroundColor: activeTab === 'ai' ? '#007AFF' : (colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0') },
+            pressed && styles.tabPressed,
           ]}
-          onPress={() => setShowSavedMeals(!showSavedMeals)}>
-          <IconSymbol 
-            name={showSavedMeals ? "list.bullet" : "bookmark"} 
-            size={16} 
-            color={showSavedMeals ? "#fff" : "#333"} 
-            style={styles.buttonIcon} 
-          />
-          <ThemedText
-            style={[
-              styles.toggleButtonText,
-              showSavedMeals && styles.activeToggleButtonText,
-            ]}>
-            {showSavedMeals ? 'View Generated' : 'View Saved'}
+          onPress={() => setActiveTab('ai')}>
+          <IconSymbol name="sparkles" size={20} color={activeTab === 'ai' ? '#fff' : (colorScheme === 'dark' ? '#999' : '#666')} />
+          <ThemedText style={[
+            styles.tabText,
+            { color: activeTab === 'ai' ? '#fff' : (colorScheme === 'dark' ? '#999' : '#666') },
+          ]}>
+            AI Recipes
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.tab,
+            { backgroundColor: activeTab === 'saved' ? '#007AFF' : (colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0') },
+            pressed && styles.tabPressed,
+          ]}
+          onPress={() => setActiveTab('saved')}>
+          <IconSymbol name="bookmark.fill" size={20} color={activeTab === 'saved' ? '#fff' : (colorScheme === 'dark' ? '#999' : '#666')} />
+          <ThemedText style={[
+            styles.tabText,
+            { color: activeTab === 'saved' ? '#fff' : (colorScheme === 'dark' ? '#999' : '#666') },
+          ]}>
+            Saved
           </ThemedText>
         </Pressable>
       </View>
@@ -254,55 +380,193 @@ export default function MealPlannerScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {!showSavedMeals ? (
-          <>
-            {generatedIdeas.length === 0 && !isGenerating && (
-              <View style={styles.emptyState}>
-                <IconSymbol name="restaurant" size={64} color="#999" />
-                <ThemedText style={styles.emptyTitle}>No Meal Ideas Yet</ThemedText>
-                <ThemedText style={styles.emptyText}>
-                  Select ingredients and tap &quot;Generate Meal Ideas&quot; to get personalized meal
-                  suggestions based on your profile and available ingredients.
-                </ThemedText>
+      {/* Ingredients Tab Content */}
+      {activeTab === 'ingredients' && (
+        <ThemedView style={styles.tabContent}>
+          {selectedIngredients.length > 0 && (
+            <View style={styles.selectedSection}>
+              <View style={styles.selectedHeader}>
+                <ThemedText style={styles.selectedTitle}>Selected ({selectedIngredients.length})</ThemedText>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.clearAllButton,
+                    pressed && styles.buttonPressed,
+                  ]}
+                  onPress={handleClearSelection}>
+                  <ThemedText style={styles.clearAllButtonText}>Clear All</ThemedText>
+                </Pressable>
               </View>
-            )}
+              <FlatList<string>
+                horizontal
+                data={selectedIngredients}
+                keyExtractor={(item: string) => item}
+                renderItem={({ item }: { item: string }) => (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.pill,
+                      pressed && styles.pillPressed,
+                    ]}
+                    onPress={() => handleRemoveIngredient(item)}>
+                    <ThemedText style={styles.pillText}>{item}</ThemedText>
+                    <ThemedText style={styles.pillRemove}>×</ThemedText>
+                  </Pressable>
+                )}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.pillsContent}
+              />
+              <View style={styles.actionButtons}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionButton,
+                    styles.searchButton,
+                    pressed && styles.buttonPressed,
+                  ]}
+                  onPress={handleSearchMealDBRecipes}>
+                  <IconSymbol name="magnifyingglass" size={20} color="#fff" style={styles.buttonIcon} />
+                  <ThemedText style={styles.actionButtonText}>Search Recipes</ThemedText>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionButton,
+                    styles.generateButton,
+                    pressed && styles.buttonPressed,
+                    isGenerating && styles.disabledButton,
+                  ]}
+                  onPress={handleGenerateMeals}
+                  disabled={isGenerating}>
+                  {isGenerating ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <IconSymbol name="sparkles" size={20} color="#fff" style={styles.buttonIcon} />
+                      <ThemedText style={styles.actionButtonText}>Generate with AI</ThemedText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          )}
 
-            {generatedIdeas.map((meal) => renderMealCard(meal, false))}
+          <TextInput
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(120, 120, 128, 0.12)',
+                color: colorScheme === 'dark' ? '#fff' : '#000',
+              },
+            ]}
+            placeholder="Search ingredients..."
+            placeholderTextColor={colorScheme === 'dark' ? '#666' : '#999'}
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
 
-            {generatedIdeas.length > 0 && (
+          {ingredientsLoading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <ThemedText style={styles.loadingText}>Loading ingredients...</ThemedText>
+            </View>
+          )}
+
+          {ingredientsError && (
+            <ThemedView style={styles.errorState}>
+              <ThemedText style={styles.errorStateText}>{ingredientsError}</ThemedText>
               <Pressable
                 style={({ pressed }) => [
-                  styles.clearButton,
+                  styles.retryButton,
                   pressed && styles.buttonPressed,
                 ]}
-                onPress={() => dispatch(clearGeneratedIdeas())}>
-                <ThemedText style={styles.clearButtonText}>Clear Ideas</ThemedText>
+                onPress={retryFetch}>
+                <ThemedText style={styles.retryButtonText}>Retry</ThemedText>
               </Pressable>
-            )}
-          </>
-        ) : (
-          <>
-            {savedMeals.length === 0 && !isLoading && (
-              <View style={styles.emptyState}>
-                <IconSymbol name="bookmark" size={64} color="#999" />
-                <ThemedText style={styles.emptyTitle}>No Saved Meals</ThemedText>
-                <ThemedText style={styles.emptyText}>
-                  Save your favorite meal ideas to access them later.
-                </ThemedText>
-              </View>
-            )}
+            </ThemedView>
+          )}
 
-            {isLoading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-              </View>
-            )}
+          {!ingredientsLoading && !ingredientsError && (
+            <FlatList<IngredientWithNutrition>
+              data={filteredIngredients}
+              keyExtractor={(item: IngredientWithNutrition) => item.idIngredient}
+              renderItem={({ item }: { item: IngredientWithNutrition }) => (
+                <IngredientCard
+                  ingredient={item}
+                  isSelected={selectedSet.has(item.strIngredient)}
+                  onToggle={handleToggleIngredient}
+                  colorScheme={colorScheme}
+                />
+              )}
+              contentContainerStyle={styles.ingredientList}
+              ListEmptyComponent={
+                <ThemedView style={styles.emptyState}>
+                  <IconSymbol name="magnifyingglass" size={64} color="#999" />
+                  <ThemedText style={styles.emptyText}>
+                    {searchQuery ? 'No ingredients found matching your search' : 'Start typing to search for ingredients'}
+                  </ThemedText>
+                </ThemedView>
+              }
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={15}
+              windowSize={5}
+            />
+          )}
+        </ThemedView>
+      )}
 
-            {savedMeals.map((meal) => renderMealCard(meal, true))}
-          </>
-        )}
-      </ScrollView>
+      {/* AI Recipes Tab Content */}
+      {activeTab === 'ai' && (
+        <ScrollView style={styles.tabContent} contentContainerStyle={styles.scrollContent}>
+          {generatedIdeas.length === 0 && !isGenerating && (
+            <View style={styles.emptyState}>
+              <IconSymbol name="sparkles" size={64} color="#999" />
+              <ThemedText style={styles.emptyTitle}>No AI Recipes Yet</ThemedText>
+              <ThemedText style={styles.emptyText}>
+                Select ingredients and tap &quot;Generate with AI&quot; to get personalized meal
+                suggestions based on your profile and available ingredients.
+              </ThemedText>
+            </View>
+          )}
+
+          {generatedIdeas.map((meal) => renderMealCard(meal, false))}
+
+          {generatedIdeas.length > 0 && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.clearButton,
+                { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' },
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => dispatch(clearGeneratedIdeas())}>
+              <ThemedText style={styles.clearButtonText}>Clear Ideas</ThemedText>
+            </Pressable>
+          )}
+        </ScrollView>
+      )}
+
+      {/* Saved Meals Tab Content */}
+      {activeTab === 'saved' && (
+        <ScrollView style={styles.tabContent} contentContainerStyle={styles.scrollContent}>
+          {savedMeals.length === 0 && !isLoading && (
+            <View style={styles.emptyState}>
+              <IconSymbol name="bookmark" size={64} color="#999" />
+              <ThemedText style={styles.emptyTitle}>No Saved Meals</ThemedText>
+              <ThemedText style={styles.emptyText}>
+                Save your favorite meal ideas to access them later.
+              </ThemedText>
+            </View>
+          )}
+
+          {isLoading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+            </View>
+          )}
+
+          {savedMeals.map((meal) => renderMealCard(meal, true))}
+        </ScrollView>
+      )}
 
       {/* Meal Detail Modal */}
       <Modal
@@ -321,6 +585,7 @@ export default function MealPlannerScreen() {
                   <Pressable
                     style={({ pressed }) => [
                       styles.closeButton,
+                      { backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#f0f0f0' },
                       pressed && styles.buttonPressed,
                     ]}
                     onPress={closeMealDetail}>
@@ -361,27 +626,27 @@ export default function MealPlannerScreen() {
                       Nutrition (per serving)
                     </ThemedText>
                     <View style={styles.nutritionGrid}>
-                      <View style={styles.nutritionItem}>
-                        <ThemedText style={styles.nutritionLabel}>Calories</ThemedText>
-                        <ThemedText style={styles.nutritionValue}>
+                      <View style={styles.nutritionItemLarge}>
+                        <ThemedText style={styles.nutritionLabelLarge}>Calories</ThemedText>
+                        <ThemedText style={styles.nutritionValueLarge}>
                           {selectedMealDetail.nutrition.calories}
                         </ThemedText>
                       </View>
-                      <View style={styles.nutritionItem}>
-                        <ThemedText style={styles.nutritionLabel}>Protein</ThemedText>
-                        <ThemedText style={styles.nutritionValue}>
+                      <View style={styles.nutritionItemLarge}>
+                        <ThemedText style={styles.nutritionLabelLarge}>Protein</ThemedText>
+                        <ThemedText style={styles.nutritionValueLarge}>
                           {selectedMealDetail.nutrition.protein}g
                         </ThemedText>
                       </View>
-                      <View style={styles.nutritionItem}>
-                        <ThemedText style={styles.nutritionLabel}>Carbs</ThemedText>
-                        <ThemedText style={styles.nutritionValue}>
+                      <View style={styles.nutritionItemLarge}>
+                        <ThemedText style={styles.nutritionLabelLarge}>Carbs</ThemedText>
+                        <ThemedText style={styles.nutritionValueLarge}>
                           {selectedMealDetail.nutrition.carbs}g
                         </ThemedText>
                       </View>
-                      <View style={styles.nutritionItem}>
-                        <ThemedText style={styles.nutritionLabel}>Fat</ThemedText>
-                        <ThemedText style={styles.nutritionValue}>
+                      <View style={styles.nutritionItemLarge}>
+                        <ThemedText style={styles.nutritionLabelLarge}>Fat</ThemedText>
+                        <ThemedText style={styles.nutritionValueLarge}>
                           {selectedMealDetail.nutrition.fat}g
                         </ThemedText>
                       </View>
@@ -410,59 +675,184 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginTop: 4,
   },
-  topButtons: {
+  tabContainer: {
     flexDirection: 'row',
-    gap: 10,
     paddingHorizontal: 20,
+    gap: 10,
     marginBottom: 10,
   },
-  generateButton: {
+  tab: {
     flex: 1,
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  generateButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  buttonIcon: {
-    marginRight: 6,
-  },
-  toggleButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    minWidth: 140,
-    flexDirection: 'row',
     justifyContent: 'center',
     gap: 6,
+    padding: 12,
+    borderRadius: 12,
   },
-  activeToggleButton: {
+  tabPressed: {
+    opacity: 0.7,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  badge: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+  tabContent: {
+    flex: 1,
+  },
+  selectedSection: {
+    padding: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  selectedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  selectedTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    opacity: 0.6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  clearAllButton: {
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  clearAllButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pillsContent: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 8,
   },
-  toggleButtonText: {
-    color: '#333',
+  pillPressed: {
+    opacity: 0.6,
+  },
+  pillText: {
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
-  activeToggleButtonText: {
-    color: '#fff',
+  pillRemove: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: 'bold',
   },
-  disabledButton: {
-    opacity: 0.5,
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
   },
-  buttonPressed: {
-    opacity: 0.7,
-  },
-  scrollView: {
+  actionButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 12,
+  },
+  searchButton: {
+    backgroundColor: '#34C759',
+  },
+  generateButton: {
+    backgroundColor: '#007AFF',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  searchInput: {
+    marginHorizontal: 20,
+    marginVertical: 10,
+    padding: 16,
+    fontSize: 16,
+    borderRadius: 12,
+    borderWidth: 0,
+  },
+  ingredientList: {
+    padding: 20,
+    gap: 14,
+    paddingBottom: 40,
+  },
+  ingredientContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  ingredientName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  ingredientNameSelected: {
+    color: '#007AFF',
+  },
+  checkmark: {
+    fontSize: 20,
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+  nutritionContainer: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  nutritionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    gap: 8,
+  },
+  nutritionItem: {
+    alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    padding: 8,
+    borderRadius: 8,
+  },
+  nutritionLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginBottom: 3,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  nutritionValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#007AFF',
   },
   scrollContent: {
     padding: 20,
@@ -494,13 +884,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   tag: {
-    backgroundColor: '#e8f4ff',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   tagText: {
-    color: '#007AFF',
     fontSize: 12,
     fontWeight: '500',
   },
@@ -547,15 +935,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(128, 128, 128, 0.2)',
     opacity: 0.95,
   },
-  nutritionItem: {
+  nutritionItemLarge: {
     alignItems: 'center',
   },
-  nutritionLabel: {
+  nutritionLabelLarge: {
     fontSize: 11,
     opacity: 0.6,
     marginBottom: 2,
   },
-  nutritionValue: {
+  nutritionValueLarge: {
     fontSize: 16,
     fontWeight: '700',
     color: '#007AFF',
@@ -567,13 +955,14 @@ const styles = StyleSheet.create({
   },
   detailButton: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
   detailButtonText: {
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   saveButton: {
     flex: 1,
     backgroundColor: '#34C759',
@@ -601,12 +990,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
-  },color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+  },
+  buttonIcon: {
+    marginRight: 6,
+  },
+  buttonPressed: {
+    opacity: 0.7,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
   clearButton: {
-    backgroundColor: '#f0f0f0',
     padding: 14,
     borderRadius: 10,
     alignItems: 'center',
@@ -623,14 +1017,11 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     paddingHorizontal: 40,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 8,
+    marginTop: 16,
     textAlign: 'center',
   },
   emptyText: {
@@ -640,8 +1031,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   loadingContainer: {
-    padding: 40,
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
+    padding: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    opacity: 0.7,
   },
   errorContainer: {
     backgroundColor: '#FF3B30',
@@ -665,6 +1063,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',
+  },
+  errorState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    gap: 16,
+  },
+  errorStateText: {
+    fontSize: 16,
+    color: '#FF3B30',
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
@@ -696,7 +1117,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 16,
-    backgroundColor: '#f0f0f0',
   },
   closeButtonText: {
     fontSize: 28,

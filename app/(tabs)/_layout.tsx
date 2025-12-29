@@ -24,17 +24,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="ingredients"
-        options={{
-          title: 'Ingredients',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="carrot.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="meal-planner"
         options={{
           title: 'Meal Planner',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="sparkles" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="carrot.fill" color={color} />,
         }}
       />
       <Tabs.Screen
