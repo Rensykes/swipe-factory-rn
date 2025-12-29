@@ -334,4 +334,14 @@ export const firestoreService = {
     const listRef = doc(db, 'shoppingLists', listId);
     await deleteDoc(listRef);
   },
+
+  // Meal Planner Operations (for AI-generated meal ideas)
+  async addMeal(mealData: any): Promise<{ id: string }> {
+    const mealsRef = collection(db, 'plannedMeals');
+    const docRef = await addDoc(mealsRef, {
+      ...mealData,
+      createdAt: serverTimestamp(),
+    });
+    return { id: docRef.id };
+  },
 };
