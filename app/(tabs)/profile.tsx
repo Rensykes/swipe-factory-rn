@@ -3,7 +3,7 @@ import { ThemedView } from '@/components/themed-view';
 import { authService } from '@/services/authService';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { calculateNutritionTargetsWithAI, hasSensitiveDataChanged, loadProfile, saveProfile, type ActivityLevel, type Gender, type Goal, type UserProfile } from '@/store/profileSlice';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { LineChart, PieChart, ProgressChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,8 @@ export default function ProfileScreen() {
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderately_active');
   const [goal, setGoal] = useState<Goal>('maintain');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [currentChartIndex, setCurrentChartIndex] = useState(0);
+  const chartScrollViewRef = useRef<ScrollView>(null);
   
   // Get OpenAI API key from environment variable or use empty string
   const envApiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
@@ -321,90 +323,128 @@ export default function ProfileScreen() {
           
           {hasTargets ? (
             <>
-              {/* Macro Progress Rings */}
-              <View style={styles.chartContainer}>
-                <ThemedText style={styles.chartTitle}>Macro Distribution</ThemedText>
-                <ProgressChart
-                  data={{
-                    labels: ['Protein', 'Carbs', 'Fat'],
-                    data: [
-                      (profile.targetProtein! * 4) / profile.targetCalories!,
-                      (profile.targetCarbs! * 4) / profile.targetCalories!,
-                      (profile.targetFat! * 9) / profile.targetCalories!,
-                    ],
+              {/* Swipable Macro Charts */}
+              <View style={styles.swipableChartWrapper}>
+                <ScrollView
+                  ref={chartScrollViewRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(event) => {
+                    const index = Math.round(
+                      event.nativeEvent.contentOffset.x / (Dimensions.get('window').width - 40)
+                    );
+                    setCurrentChartIndex(index);
                   }}
-                  width={Dimensions.get('window').width - 80}
-                  height={240}
-                  strokeWidth={10}
-                  radius={26}
-                  chartConfig={{
-                    backgroundGradientFrom: '#1C1C1E',
-                    backgroundGradientTo: '#1C1C1E',
-                    color: (opacity = 1, index) => {
-                      const colors = [
-                        `rgba(10, 132, 255, ${opacity})`,   // Blue for Protein
-                        `rgba(52, 199, 89, ${opacity})`,    // Green for Carbs
-                        `rgba(255, 159, 10, ${opacity})`,   // Orange for Fat
-                      ];
-                      return colors[index || 0];
-                    },
-                    labelColor: () => '#E5E5E7',
-                    propsForLabels: {
-                      fontSize: 12,
-                      fontWeight: '600',
-                    },
-                  }}
-                  hideLegend={false}
-                />
-              </View>
+                  style={styles.chartScrollView}
+                  contentContainerStyle={styles.chartScrollContent}
+                >
+                  {/* Macro Progress Rings */}
+                  <View style={[styles.chartContainer, styles.chartPage]}>
+                    <ThemedText style={styles.chartTitle}>Macro Distribution</ThemedText>
+                    <ProgressChart
+                      data={{
+                        labels: ['Protein', 'Carbs', 'Fat'],
+                        data: [
+                          (profile.targetProtein! * 4) / profile.targetCalories!,
+                          (profile.targetCarbs! * 4) / profile.targetCalories!,
+                          (profile.targetFat! * 9) / profile.targetCalories!,
+                        ],
+                      }}
+                      width={Dimensions.get('window').width - 80}
+                      height={240}
+                      strokeWidth={10}
+                      radius={26}
+                      chartConfig={{
+                        backgroundGradientFrom: '#1C1C1E',
+                        backgroundGradientTo: '#1C1C1E',
+                        color: (opacity = 1, index) => {
+                          const colors = [
+                            `rgba(10, 132, 255, ${opacity})`,   // Blue for Protein
+                            `rgba(52, 199, 89, ${opacity})`,    // Green for Carbs
+                            `rgba(255, 159, 10, ${opacity})`,   // Orange for Fat
+                          ];
+                          return colors[index || 0];
+                        },
+                        labelColor: () => '#E5E5E7',
+                        propsForLabels: {
+                          fontSize: 12,
+                          fontWeight: '600',
+                        },
+                      }}
+                      hideLegend={false}
+                    />
+                  </View>
 
-              {/* Enhanced Macro Pie Chart */}
-              <View style={styles.chartContainer}>
-                <ThemedText style={styles.chartTitle}>Calorie Breakdown</ThemedText>
-                <PieChart
-                  data={[
-                    {
-                      name: 'Protein',
-                      population: profile.targetProtein! * 4,
-                      color: '#0A84FF',
-                      legendFontColor: '#E5E5E7',
-                      legendFontSize: 13,
-                    },
-                    {
-                      name: 'Carbs',
-                      population: profile.targetCarbs! * 4,
-                      color: '#34C759',
-                      legendFontColor: '#E5E5E7',
-                      legendFontSize: 13,
-                    },
-                    {
-                      name: 'Fat',
-                      population: profile.targetFat! * 9,
-                      color: '#FF9F0A',
-                      legendFontColor: '#E5E5E7',
-                      legendFontSize: 13,
-                    },
-                  ]}
-                  width={Dimensions.get('window').width - 80}
-                  height={220}
-                  chartConfig={{
-                    color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                    labelColor: (opacity = 1) => `rgba(229, 229, 231, ${opacity})`,
-                    propsForLabels: {
-                      fontSize: 15,
-                      fontWeight: '700',
-                    },
-                  }}
-                  accessor="population"
-                  backgroundColor="transparent"
-                  paddingLeft="15"
-                  center={[10, 10]}
-                  hasLegend={true}
-                  absolute={false}
-                  style={{
-                    marginVertical: 8,
-                  }}
-                />
+                  {/* Enhanced Macro Pie Chart */}
+                  <View style={[styles.chartContainer, styles.chartPage]}>
+                    <ThemedText style={styles.chartTitle}>Calorie Breakdown</ThemedText>
+                    <PieChart
+                      data={[
+                        {
+                          name: 'Protein',
+                          population: profile.targetProtein! * 4,
+                          color: '#0A84FF',
+                          legendFontColor: '#E5E5E7',
+                          legendFontSize: 13,
+                        },
+                        {
+                          name: 'Carbs',
+                          population: profile.targetCarbs! * 4,
+                          color: '#34C759',
+                          legendFontColor: '#E5E5E7',
+                          legendFontSize: 13,
+                        },
+                        {
+                          name: 'Fat',
+                          population: profile.targetFat! * 9,
+                          color: '#FF9F0A',
+                          legendFontColor: '#E5E5E7',
+                          legendFontSize: 13,
+                        },
+                      ]}
+                      width={Dimensions.get('window').width - 80}
+                      height={220}
+                      chartConfig={{
+                        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                        labelColor: (opacity = 1) => `rgba(229, 229, 231, ${opacity})`,
+                        propsForLabels: {
+                          fontSize: 15,
+                          fontWeight: '700',
+                        },
+                      }}
+                      accessor="population"
+                      backgroundColor="transparent"
+                      paddingLeft="15"
+                      center={[10, 10]}
+                      hasLegend={true}
+                      absolute={false}
+                      style={{
+                        marginVertical: 8,
+                      }}
+                    />
+                  </View>
+                </ScrollView>
+                
+                {/* Pagination Dots */}
+                <View style={styles.paginationDots}>
+                  {[0, 1].map((index) => (
+                    <Pressable
+                      key={index}
+                      onPress={() => {
+                        chartScrollViewRef.current?.scrollTo({
+                          x: index * (Dimensions.get('window').width - 40),
+                          animated: true,
+                        });
+                        setCurrentChartIndex(index);
+                      }}
+                      style={[
+                        styles.dot,
+                        currentChartIndex === index && styles.dotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
               </View>
 
               {/* Weekly Progress Preview Chart */}
@@ -882,6 +922,36 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     overflow: 'hidden',
+  },
+  swipableChartWrapper: {
+    marginBottom: 24,
+  },
+  chartScrollView: {
+    width: '100%',
+  },
+  chartScrollContent: {
+    alignItems: 'flex-start',
+  },
+  chartPage: {
+    width: Dimensions.get('window').width - 40,
+    marginBottom: 0,
+  },
+  paginationDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  dotActive: {
+    backgroundColor: '#0A84FF',
+    width: 24,
   },
   chartTitle: {
     fontSize: 16,
