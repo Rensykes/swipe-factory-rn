@@ -1,181 +1,305 @@
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import * as MediaLibrary from 'expo-media-library';
-import { useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { DashboardCard } from '@/components/dashboard-card';
+import { QuickActions } from '@/components/quick-actions';
+import { StatCard } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { useAppSelector } from '@/store/hooks';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Dimensions, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const profile = useAppSelector((state) => state.profile.profile);
+  const meals = useAppSelector((state) => state.meals.meals);
+  const selectedIngredients = useAppSelector((state) => state.ingredients.selectedIngredients);
+  
+  const [greeting, setGreeting] = useState('Hello');
+  
+  const backgroundColor = useThemeColor({}, 'background');
+  const textColor = useThemeColor({}, 'text');
+  const tintColor = useThemeColor({}, 'tint');
 
-  const openCamera = async () => {
-    // Request camera permissions
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Camera permission is required to take pictures.');
-      return;
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) {
+      setGreeting('Good Morning');
+    } else if (hour < 18) {
+      setGreeting('Good Afternoon');
+    } else {
+      setGreeting('Good Evening');
     }
+  }, []);
 
-    // Request media library permissions
-    const mediaLibraryPermission = await MediaLibrary.requestPermissionsAsync();
-    
-    if (mediaLibraryPermission.status !== 'granted') {
-      Alert.alert('Permission Denied', 'Media library permission is required to save pictures.');
-      return;
-    }
-
-    // Launch camera
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setCapturedImage(uri);
-      
-      // Save to device media library
-      try {
-        const asset = await MediaLibrary.createAssetAsync(uri);
-        await MediaLibrary.createAlbumAsync('SwipeFactory', asset, false);
-        Alert.alert('Success', 'Picture saved to your gallery!');
-      } catch (error) {
-        Alert.alert('Error', 'Failed to save picture to gallery.');
-        console.error('Save error:', error);
-      }
-    }
-  };
+  const todayCalories = profile?.targetCalories || 0;
+  const targetProtein = profile?.targetProtein || 0;
+  const mealsCount = meals.length;
+  const ingredientsCount = selectedIngredients.length;
 
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Take a Picture</ThemedText>
-        <Pressable
-          style={({ pressed }) => [
-            styles.cameraButton,
-            pressed && styles.cameraButtonPressed,
-          ]}
-          onPress={openCamera}>
-          <ThemedText style={styles.cameraButtonText}>📷 Open Camera</ThemedText>
-        </Pressable>
-        {capturedImage && (
-          <Image
-            source={{ uri: capturedImage }}
-            style={styles.capturedImage}
-          />
-        )}
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <ThemedView style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        
+        {/* Header Section with Gradient */}
+        <LinearGradient
+          colors={[tintColor + 'CC', tintColor + '66']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}>
+          <View style={styles.header}>
+            <View>
+              <ThemedText type="title" style={styles.greeting}>
+                {greeting}
+              </ThemedText>
+              <ThemedText type="defaultSemiBold" style={styles.userName}>
+                {profile?.name || 'Welcome to Swipe Factory'}
+              </ThemedText>
+            </View>
+            <View style={styles.profileIcon}>
+              <ThemedText style={styles.profileEmoji}>👨‍🍳</ThemedText>
+            </View>
+          </View>
+        </LinearGradient>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Stats Section */}
+        <View style={styles.section}>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Today's Overview
+          </ThemedText>
+          <View style={styles.statsGrid}>
+            <StatCard
+              title="Target Calories"
+              value={todayCalories > 0 ? todayCalories : '--'}
+              subtitle={todayCalories > 0 ? 'kcal/day' : 'Set up profile'}
+              icon="🔥"
+              color="#FF6B6B"
+            />
+            <StatCard
+              title="Protein Goal"
+              value={targetProtein > 0 ? `${targetProtein}g` : '--'}
+              subtitle={targetProtein > 0 ? 'per day' : 'Complete profile'}
+              icon="💪"
+              color="#4ECDC4"
+            />
+          </View>
+          <View style={styles.statsGrid}>
+            <StatCard
+              title="Ingredients"
+              value={ingredientsCount}
+              subtitle={ingredientsCount > 0 ? 'selected' : 'Add some'}
+              icon="🥬"
+              color="#95E1D3"
+            />
+            <StatCard
+              title="Meals Found"
+              value={mealsCount}
+              subtitle={mealsCount > 0 ? 'available' : 'Search now'}
+              icon="🍽️"
+              color="#F38181"
+            />
+          </View>
+        </View>
+
+        {/* Quick Actions Section */}
+        <View style={styles.section}>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Quick Actions
+          </ThemedText>
+          <QuickActions />
+        </View>
+
+        {/* Recent Meals Section */}
+        {meals.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle" style={styles.sectionTitle}>
+                Recent Meals
+              </ThemedText>
+              <Pressable onPress={() => router.push('/meals')}>
+                <ThemedText style={[styles.seeAll, { color: tintColor }]}>
+                  See All
+                </ThemedText>
+              </Pressable>
+            </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.mealsScroll}>
+              {meals.slice(0, 5).map((meal) => (
+                <Pressable
+                  key={meal.idMeal}
+                  style={styles.mealCard}
+                  onPress={() => router.push(`/meal-detail?id=${meal.idMeal}`)}>
+                  <DashboardCard style={styles.mealCardInner}>
+                    <View style={styles.mealImageContainer}>
+                      {meal.strMealThumb ? (
+                        <ThemedText style={styles.mealPlaceholder}>🍽️</ThemedText>
+                      ) : (
+                        <ThemedText style={styles.mealPlaceholder}>🍽️</ThemedText>
+                      )}
+                    </View>
+                    <ThemedText 
+                      type="defaultSemiBold" 
+                      numberOfLines={2}
+                      style={styles.mealTitle}>
+                      {meal.strMeal}
+                    </ThemedText>
+                    <ThemedText style={styles.mealCategory} numberOfLines={1}>
+                      {meal.strCategory} • {meal.strArea}
+                    </ThemedText>
+                  </DashboardCard>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Tips Section */}
+        <View style={styles.section}>
+          <DashboardCard>
+            <View style={styles.tipContainer}>
+              <ThemedText style={styles.tipIcon}>💡</ThemedText>
+              <View style={styles.tipContent}>
+                <ThemedText type="defaultSemiBold" style={styles.tipTitle}>
+                  Tip of the Day
+                </ThemedText>
+                <ThemedText style={styles.tipText}>
+                  {profile?.targetCalories 
+                    ? "Track your ingredients to find perfect meal matches!"
+                    : "Complete your profile to get personalized nutrition goals!"}
+                </ThemedText>
+              </View>
+            </View>
+          </DashboardCard>
+        </View>
+
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  headerGradient: {
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingBottom: 24,
+  },
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingTop: 60,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  greeting: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFF',
+    marginBottom: 4,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  userName: {
+    fontSize: 16,
+    color: '#FFF',
+    opacity: 0.9,
   },
-  cameraButton: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
+  profileIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cameraButtonPressed: {
-    opacity: 0.7,
+  profileEmoji: {
+    fontSize: 28,
   },
-  cameraButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  seeAll: {
+    fontSize: 14,
     fontWeight: '600',
   },
-  capturedImage: {
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  mealsScroll: {
+    paddingRight: 20,
+    gap: 12,
+  },
+  mealCard: {
+    width: 160,
+  },
+  mealCardInner: {
+    padding: 12,
+  },
+  mealImageContainer: {
     width: '100%',
-    height: 300,
-    borderRadius: 8,
-    marginTop: 8,
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  mealPlaceholder: {
+    fontSize: 48,
+  },
+  mealTitle: {
+    fontSize: 14,
+    marginBottom: 4,
+    minHeight: 36,
+  },
+  mealCategory: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  tipContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  tipIcon: {
+    fontSize: 32,
+  },
+  tipContent: {
+    flex: 1,
+  },
+  tipTitle: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  tipText: {
+    fontSize: 14,
+    opacity: 0.7,
+    lineHeight: 20,
   },
 });

@@ -107,7 +107,7 @@ swipe-factory/
 │   │   ├── index.tsx      # Camera screen
 │   │   ├── ingredients.tsx # Ingredient selection
 │   │   ├── profile.tsx    # User profile
-│   │   └── explore.tsx    # Explore screen
+
 │   ├── auth.tsx           # Authentication screen
 │   ├── meals.tsx          # Meal search results
 │   ├── meal-detail.tsx    # Recipe details
