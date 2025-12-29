@@ -1,16 +1,19 @@
 import AddToShoppingListModal from '@/components/add-to-shopping-list-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { firestoreService } from '@/services/firestoreService';
 import { useAppSelector } from '@/store/hooks';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 export default function MealDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const meals = useAppSelector((state) => state.meals.meals);
+  const { user } = useAppSelector((state) => state.auth);
   const [showShoppingListModal, setShowShoppingListModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const meal = meals.find((m) => m.idMeal === id);
 
@@ -46,6 +49,31 @@ export default function MealDetailScreen() {
       } catch (error) {
         console.error('Error opening YouTube:', error);
       }
+    }
+  };
+
+  const handleSaveToRecipeBook = async () => {
+    if (!user) {
+      Alert.alert('Authentication Required', 'Please sign in to save recipes');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      await firestoreService.saveMeal(user.uid, {
+        mealId: meal.idMeal,
+        mealName: meal.strMeal,
+        mealThumb: meal.strMealThumb,
+        category: meal.strCategory,
+        area: meal.strArea,
+        isFavorite: false,
+      });
+      Alert.alert('Success', 'Recipe saved to your Recipe Book!');
+    } catch (error) {
+      console.error('Error saving recipe:', error);
+      Alert.alert('Error', 'Failed to save recipe. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -99,6 +127,19 @@ export default function MealDetailScreen() {
               <ThemedText style={styles.youtubeButtonText}>▶ Watch on YouTube</ThemedText>
             </Pressable>
           )}
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.saveButton,
+              pressed && styles.saveButtonPressed,
+              isSaving && styles.saveButtonDisabled,
+            ]}
+            onPress={handleSaveToRecipeBook}
+            disabled={isSaving}>
+            <ThemedText style={styles.saveButtonText}>
+              {isSaving ? '💾 Saving...' : '📖 Save to Recipe Book'}
+            </ThemedText>
+          </Pressable>
 
           <View style={styles.section}>
             <ThemedText style={styles.sectionTitle}>Ingredients</ThemedText>
@@ -206,12 +247,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 12,
   },
   youtubeButtonPressed: {
-    opacity: 0.8,
+    opacity: 0.7,
   },
   youtubeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  saveButton: {
+    backgroundColor: '#34C759',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  saveButtonPressed: {
+    opacity: 0.7,
+  },
+  saveButtonDisabled: {
+    opacity: 0.5,
+  },
+  saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
