@@ -203,14 +203,14 @@ export default function AuthScreen() {
               )}
             </Pressable>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <ThemedText style={styles.dividerText}>OR</ThemedText>
-              <View style={styles.dividerLine} />
-            </View>
-
             {isGoogleSignInAvailable && (
               <>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <ThemedText style={styles.dividerText}>OR</ThemedText>
+                  <View style={styles.dividerLine} />
+                </View>
+
                 <Pressable
                   style={({ pressed }) => [
                     styles.googleButton,
@@ -231,14 +231,6 @@ export default function AuthScreen() {
                   )}
                 </Pressable>
               </>
-            )}
-
-            {!isGoogleSignInAvailable && (
-              <View style={styles.infoContainer}>
-                <ThemedText style={styles.infoText}>
-                  💡 Google Sign-In requires a development build. For now, use email/password.
-                </ThemedText>
-              </View>
             )}
 
             <Pressable
@@ -275,12 +267,17 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
   title: {
-    fontSize: 42,
+    fontSize: 36,
     fontWeight: '700',
     color: '#0A84FF',
     marginBottom: 8,
+    textAlign: 'center',
+    lineHeight: 44,
+    includeFontPadding: false,
   },
   subtitle: {
     fontSize: 18,

@@ -107,6 +107,11 @@ service cloud.firestore {
     // User profiles - only owner can read/write their own profile
     match /users/{userId} {
       allow read, write: if isOwner(userId);
+      
+      // Daily nutrition targets subcollection
+      match /daily_nutrition_targets/{targetId} {
+        allow read, write: if isOwner(userId);
+      }
     }
     
     // Ingredients - only owner can read/write their own ingredients

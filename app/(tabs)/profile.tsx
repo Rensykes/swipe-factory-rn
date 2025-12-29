@@ -2,14 +2,15 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { authService } from '@/services/authService';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { loadProfile, saveProfile, type ActivityLevel, type Gender, type Goal, type UserProfile } from '@/store/profileSlice';
+import { calculateNutritionTargetsWithAI, hasSensitiveDataChanged, loadProfile, saveProfile, type ActivityLevel, type Gender, type Goal, type UserProfile } from '@/store/profileSlice';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { LineChart, PieChart, ProgressChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const dispatch = useAppDispatch();
-  const { profile, isLoaded } = useAppSelector((state) => state.profile);
+  const { profile, isLoaded, isCalculatingTargets } = useAppSelector((state) => state.profile);
   const { user } = useAppSelector((state) => state.auth);
   const insets = useSafeAreaInsets();
   
@@ -20,6 +21,11 @@ export default function ProfileScreen() {
   const [weight, setWeight] = useState('');
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderately_active');
   const [goal, setGoal] = useState<Goal>('maintain');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  
+  // Get OpenAI API key from environment variable or use empty string
+  const envApiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
+  const hasEnvApiKey = envApiKey && envApiKey !== 'your_openai_api_key_here';
 
   useEffect(() => {
     dispatch(loadProfile());
@@ -85,6 +91,56 @@ export default function ProfileScreen() {
       ]
     );
   };
+
+  const handleCalculateTargets = async () => {
+    // Use environment API key if available, otherwise use user input
+    const apiKeyToUse = hasEnvApiKey ? envApiKey : openaiApiKey.trim();
+    
+    console.log('=== API Key Debug ===');
+    console.log('Environment API Key:', envApiKey);
+    console.log('Has Env API Key:', hasEnvApiKey);
+    console.log('User Input API Key:', openaiApiKey);
+    console.log('API Key to Use:', apiKeyToUse);
+    console.log('API Key Length:', apiKeyToUse.length);
+    console.log('====================');
+    
+    if (!apiKeyToUse) {
+      Alert.alert('API Key Required', 'Please enter your OpenAI API key to calculate nutrition targets.');
+      return;
+    }
+
+    if (!name || !age || !height || !weight) {
+      Alert.alert('Incomplete Profile', 'Please fill in all required fields before calculating nutrition targets.');
+      return;
+    }
+
+    // Save profile first
+    const profileData: UserProfile = {
+      name,
+      age: parseInt(age),
+      gender,
+      height: parseInt(height),
+      weight: parseInt(weight),
+      activityLevel,
+      goal,
+    };
+
+    try {
+      await dispatch(saveProfile(profileData));
+      
+      // Calculate nutrition targets using OpenAI
+      await dispatch(calculateNutritionTargetsWithAI(apiKeyToUse));
+      
+      Alert.alert('Success', 'Your nutrition targets have been calculated and saved!');
+      setOpenaiApiKey(''); // Clear API key for security
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to calculate nutrition targets. Please try again.');
+      console.error('Error calculating nutrition targets:', error);
+    }
+  };
+
+  const hasTargets = profile && profile.targetCalories !== undefined;
+  const needsRecalculation = profile ? hasSensitiveDataChanged(profile) : false;
 
   if (!isLoaded) {
     return (
@@ -260,30 +316,294 @@ export default function ProfileScreen() {
         </View>
 
         {/* Nutrition Targets (if profile exists) */}
-        {profile && (
-          <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Daily Nutrition Targets</ThemedText>
-            
-            <View style={styles.targetsGrid}>
-              <View style={styles.targetCard}>
-                <ThemedText style={styles.targetValue}>{profile.targetCalories}</ThemedText>
-                <ThemedText style={styles.targetLabel}>Calories</ThemedText>
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Daily Nutrition Targets</ThemedText>
+          
+          {hasTargets ? (
+            <>
+              {/* Macro Progress Rings */}
+              <View style={styles.chartContainer}>
+                <ThemedText style={styles.chartTitle}>Macro Distribution</ThemedText>
+                <ProgressChart
+                  data={{
+                    labels: ['Protein', 'Carbs', 'Fat'],
+                    data: [
+                      (profile.targetProtein! * 4) / profile.targetCalories!,
+                      (profile.targetCarbs! * 4) / profile.targetCalories!,
+                      (profile.targetFat! * 9) / profile.targetCalories!,
+                    ],
+                  }}
+                  width={Dimensions.get('window').width - 80}
+                  height={240}
+                  strokeWidth={10}
+                  radius={26}
+                  chartConfig={{
+                    backgroundGradientFrom: '#1C1C1E',
+                    backgroundGradientTo: '#1C1C1E',
+                    color: (opacity = 1, index) => {
+                      const colors = [
+                        `rgba(10, 132, 255, ${opacity})`,   // Blue for Protein
+                        `rgba(52, 199, 89, ${opacity})`,    // Green for Carbs
+                        `rgba(255, 159, 10, ${opacity})`,   // Orange for Fat
+                      ];
+                      return colors[index || 0];
+                    },
+                    labelColor: () => '#E5E5E7',
+                    propsForLabels: {
+                      fontSize: 12,
+                      fontWeight: '600',
+                    },
+                  }}
+                  hideLegend={false}
+                />
               </View>
-              <View style={styles.targetCard}>
-                <ThemedText style={styles.targetValue}>{profile.targetProtein}g</ThemedText>
-                <ThemedText style={styles.targetLabel}>Protein</ThemedText>
+
+              {/* Enhanced Macro Pie Chart */}
+              <View style={styles.chartContainer}>
+                <ThemedText style={styles.chartTitle}>Calorie Breakdown</ThemedText>
+                <PieChart
+                  data={[
+                    {
+                      name: 'Protein',
+                      population: profile.targetProtein! * 4,
+                      color: '#0A84FF',
+                      legendFontColor: '#E5E5E7',
+                      legendFontSize: 13,
+                    },
+                    {
+                      name: 'Carbs',
+                      population: profile.targetCarbs! * 4,
+                      color: '#34C759',
+                      legendFontColor: '#E5E5E7',
+                      legendFontSize: 13,
+                    },
+                    {
+                      name: 'Fat',
+                      population: profile.targetFat! * 9,
+                      color: '#FF9F0A',
+                      legendFontColor: '#E5E5E7',
+                      legendFontSize: 13,
+                    },
+                  ]}
+                  width={Dimensions.get('window').width - 80}
+                  height={220}
+                  chartConfig={{
+                    color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(229, 229, 231, ${opacity})`,
+                    propsForLabels: {
+                      fontSize: 15,
+                      fontWeight: '700',
+                    },
+                  }}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  center={[10, 10]}
+                  hasLegend={true}
+                  absolute={false}
+                  style={{
+                    marginVertical: 8,
+                  }}
+                />
               </View>
-              <View style={styles.targetCard}>
-                <ThemedText style={styles.targetValue}>{profile.targetCarbs}g</ThemedText>
-                <ThemedText style={styles.targetLabel}>Carbs</ThemedText>
+
+              {/* Weekly Progress Preview Chart */}
+              <View style={styles.chartContainer}>
+                <ThemedText style={styles.chartTitle}>Weekly Target Tracking</ThemedText>
+                <LineChart
+                  data={{
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [
+                      {
+                        data: [
+                          profile.targetCalories! * 0.92,
+                          profile.targetCalories! * 1.05,
+                          profile.targetCalories! * 0.98,
+                          profile.targetCalories! * 1.02,
+                          profile.targetCalories! * 0.95,
+                          profile.targetCalories! * 1.08,
+                          profile.targetCalories! * 0.88,
+                        ],
+                        color: (opacity = 1) => `rgba(10, 132, 255, ${opacity})`,
+                        strokeWidth: 2,
+                      },
+                    ],
+                    legend: ['Calorie Target'],
+                  }}
+                  width={Dimensions.get('window').width - 80}
+                  height={200}
+                  chartConfig={{
+                    backgroundColor: '#1C1C1E',
+                    backgroundGradientFrom: '#1C1C1E',
+                    backgroundGradientTo: '#2C2C2E',
+                    decimalPlaces: 0,
+                    color: (opacity = 1) => `rgba(10, 132, 255, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(229, 229, 231, ${opacity})`,
+                    style: {
+                      borderRadius: 16,
+                    },
+                    propsForDots: {
+                      r: '6',
+                      strokeWidth: '3',
+                      stroke: '#0A84FF',
+                      fill: '#1C1C1E',
+                    },
+                    propsForBackgroundLines: {
+                      strokeDasharray: '',
+                      stroke: 'rgba(255, 255, 255, 0.1)',
+                      strokeWidth: 1,
+                    },
+                    propsForLabels: {
+                      fontSize: 12,
+                      fontWeight: '600',
+                    },
+                  }}
+                  bezier
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16,
+                  }}
+                  withInnerLines={true}
+                  withOuterLines={true}
+                  withVerticalLines={false}
+                  withHorizontalLines={true}
+                  withVerticalLabels={true}
+                  withHorizontalLabels={true}
+                  withDots={true}
+                  withShadow={true}
+                  fromZero={false}
+                />
+                <ThemedText style={styles.chartNote}>
+                  Sample data - Track your actual progress in the Meals tab
+                </ThemedText>
               </View>
-              <View style={styles.targetCard}>
-                <ThemedText style={styles.targetValue}>{profile.targetFat}g</ThemedText>
-                <ThemedText style={styles.targetLabel}>Fat</ThemedText>
+
+              <View style={styles.targetsGrid}>
+                <View style={[styles.targetCard, styles.targetCardCalories]}>
+                  <View style={styles.targetIconContainer}>
+                    <ThemedText style={styles.targetIcon}>🔥</ThemedText>
+                  </View>
+                  <ThemedText style={styles.targetValue}>{profile.targetCalories}</ThemedText>
+                  <ThemedText style={styles.targetLabel}>Calories</ThemedText>
+                  <View style={styles.targetProgressBar}>
+                    <View style={[styles.targetProgressFill, { width: '100%', backgroundColor: '#FF453A' }]} />
+                  </View>
+                </View>
+                <View style={[styles.targetCard, styles.targetCardProtein]}>
+                  <View style={styles.targetIconContainer}>
+                    <ThemedText style={styles.targetIcon}>💪</ThemedText>
+                  </View>
+                  <ThemedText style={styles.targetValue}>{profile.targetProtein}g</ThemedText>
+                  <ThemedText style={styles.targetLabel}>Protein</ThemedText>
+                  <View style={styles.targetProgressBar}>
+                    <View style={[styles.targetProgressFill, { width: '100%', backgroundColor: '#0A84FF' }]} />
+                  </View>
+                </View>
+                <View style={[styles.targetCard, styles.targetCardCarbs]}>
+                  <View style={styles.targetIconContainer}>
+                    <ThemedText style={styles.targetIcon}>🌾</ThemedText>
+                  </View>
+                  <ThemedText style={styles.targetValue}>{profile.targetCarbs}g</ThemedText>
+                  <ThemedText style={styles.targetLabel}>Carbs</ThemedText>
+                  <View style={styles.targetProgressBar}>
+                    <View style={[styles.targetProgressFill, { width: '100%', backgroundColor: '#34C759' }]} />
+                  </View>
+                </View>
+                <View style={[styles.targetCard, styles.targetCardFat]}>
+                  <View style={styles.targetIconContainer}>
+                    <ThemedText style={styles.targetIcon}>🥑</ThemedText>
+                  </View>
+                  <ThemedText style={styles.targetValue}>{profile.targetFat}g</ThemedText>
+                  <ThemedText style={styles.targetLabel}>Fat</ThemedText>
+                  <View style={styles.targetProgressBar}>
+                    <View style={[styles.targetProgressFill, { width: '100%', backgroundColor: '#FF9F0A' }]} />
+                  </View>
+                </View>
               </View>
-            </View>
-          </View>
-        )}
+              
+              {needsRecalculation && (
+                <>
+                  <View style={styles.warningContainer}>
+                    <ThemedText style={styles.warningText}>
+                      ⚠️ Your profile has changed. Consider recalculating your nutrition targets.
+                    </ThemedText>
+                  </View>
+                  
+                  {!hasEnvApiKey && (
+                    <View style={styles.inputGroup}>
+                      <ThemedText style={styles.label}>OpenAI API Key (for recalculation)</ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={openaiApiKey}
+                        onChangeText={setOpenaiApiKey}
+                        placeholder="sk-..."
+                        placeholderTextColor="#666"
+                        secureTextEntry
+                        autoCapitalize="none"
+                      />
+                    </View>
+                  )}
+                  
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.calculateButton,
+                      pressed && styles.calculateButtonPressed,
+                      isCalculatingTargets && styles.calculateButtonDisabled,
+                    ]}
+                    onPress={handleCalculateTargets}
+                    disabled={isCalculatingTargets}>
+                    {isCalculatingTargets ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <ThemedText style={styles.calculateButtonText}>Recalculate Targets</ThemedText>
+                    )}
+                  </Pressable>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <View style={styles.infoContainer}>
+                <ThemedText style={styles.infoText}>
+                  Calculate your personalized daily nutrition targets using AI.
+                </ThemedText>
+              </View>
+              
+              {!hasEnvApiKey && (
+                <View style={styles.inputGroup}>
+                  <ThemedText style={styles.label}>OpenAI API Key</ThemedText>
+                  <TextInput
+                    style={styles.input}
+                    value={openaiApiKey}
+                    onChangeText={setOpenaiApiKey}
+                    placeholder="sk-..."
+                    placeholderTextColor="#666"
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
+                  <ThemedText style={styles.helperText}>
+                    Your API key is used once and not stored. Get one at platform.openai.com
+                  </ThemedText>
+                </View>
+              )}
+              
+              <Pressable
+                style={({ pressed }) => [
+                  styles.calculateButton,
+                  pressed && styles.calculateButtonPressed,
+                  isCalculatingTargets && styles.calculateButtonDisabled,
+                ]}
+                onPress={handleCalculateTargets}
+                disabled={isCalculatingTargets}>
+                {isCalculatingTargets ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <ThemedText style={styles.calculateButtonText}>Calculate Targets</ThemedText>
+                )}
+              </Pressable>
+            </>
+          )}
+        </View>
 
         {/* Save Button */}
         <Pressable
@@ -481,26 +801,156 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginTop: 8,
   },
   targetCard: {
     width: '48%',
-    padding: 20,
-    borderRadius: 12,
-    backgroundColor: 'rgba(10, 132, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(10, 132, 255, 0.3)',
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#1C1C1E',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+    minHeight: 120,
+  },
+  targetCardCalories: {
+    borderColor: 'rgba(255, 69, 58, 0.4)',
+    backgroundColor: 'rgba(255, 69, 58, 0.1)',
+  },
+  targetCardProtein: {
+    borderColor: 'rgba(10, 132, 255, 0.4)',
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+  },
+  targetCardCarbs: {
+    borderColor: 'rgba(52, 199, 89, 0.4)',
+    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+  },
+  targetCardFat: {
+    borderColor: 'rgba(255, 159, 10, 0.4)',
+    backgroundColor: 'rgba(255, 159, 10, 0.1)',
+  },
+  targetIconContainer: {
+    marginBottom: 6,
+  },
+  targetIcon: {
+    fontSize: 24,
   },
   targetValue: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#0A84FF',
-    marginBottom: 4,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 3,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   targetLabel: {
-    fontSize: 13,
+    fontSize: 11,
     color: '#A0A0A0',
-    fontWeight: '500',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  targetProgressBar: {
+    width: '100%',
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  targetProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  chartContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  chartNote: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  infoContainer: {
+    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
+    marginBottom: 16,
+  },
+  infoText: {
+    color: '#0A84FF',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  warningContainer: {
+    backgroundColor: 'rgba(255, 159, 10, 0.15)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 10, 0.3)',
+    marginTop: 16,
+  },
+  warningText: {
+    color: '#FF9F0A',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  calculateButton: {
+    backgroundColor: '#34C759',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  calculateButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  calculateButtonDisabled: {
+    opacity: 0.5,
+  },
+  calculateButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   saveButton: {
     backgroundColor: '#0A84FF',

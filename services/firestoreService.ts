@@ -162,4 +162,53 @@ export const firestoreService = {
     const mealRef = doc(db, 'meals', mealId);
     await deleteDoc(mealRef);
   },
+
+  // Daily Nutrition Targets Operations
+  async saveNutritionTargets(
+    userId: string,
+    targets: {
+      targetCalories: number;
+      targetProtein: number;
+      targetCarbs: number;
+      targetFat: number;
+    },
+    profileSnapshot: {
+      age: number;
+      gender: string;
+      height: number;
+      weight: number;
+      activityLevel: string;
+      goal: string;
+    }
+  ): Promise<void> {
+    const targetsRef = doc(db, 'users', userId, 'daily_nutrition_targets', 'current');
+    await setDoc(targetsRef, {
+      ...targets,
+      lastCalculatedWith: profileSnapshot,
+      calculatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  async getNutritionTargets(userId: string): Promise<{
+    targetCalories: number;
+    targetProtein: number;
+    targetCarbs: number;
+    targetFat: number;
+    lastCalculatedWith?: any;
+    calculatedAt?: Timestamp;
+  } | null> {
+    const targetsRef = doc(db, 'users', userId, 'daily_nutrition_targets', 'current');
+    const targetsSnap = await getDoc(targetsRef);
+    
+    if (targetsSnap.exists()) {
+      return targetsSnap.data() as any;
+    }
+    return null;
+  },
+
+  async deleteNutritionTargets(userId: string): Promise<void> {
+    const targetsRef = doc(db, 'users', userId, 'daily_nutrition_targets', 'current');
+    await deleteDoc(targetsRef);
+  },
 };

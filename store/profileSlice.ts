@@ -1,5 +1,6 @@
 import { auth } from '@/config/firebase';
 import { firestoreService } from '@/services/firestoreService';
+import { openaiService } from '@/services/openaiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { AppDispatch } from './store';
@@ -20,16 +21,27 @@ export interface UserProfile {
   targetProtein?: number;
   targetCarbs?: number;
   targetFat?: number;
+  lastCalculatedWith?: {
+    age: number;
+    gender: Gender;
+    height: number;
+    weight: number;
+    activityLevel: ActivityLevel;
+    goal: Goal;
+  };
+  calculatedAt?: string;
 }
 
 interface ProfileState {
   profile: UserProfile | null;
   isLoaded: boolean;
+  isCalculatingTargets: boolean;
 }
 
 const initialState: ProfileState = {
   profile: null,
   isLoaded: false,
+  isCalculatingTargets: false,
 };
 
 const PROFILE_STORAGE_KEY = '@swipe_factory_profile';
@@ -127,10 +139,40 @@ const profileSlice = createSlice({
     setIsLoaded: (state, action: PayloadAction<boolean>) => {
       state.isLoaded = action.payload;
     },
+    setIsCalculatingTargets: (state, action: PayloadAction<boolean>) => {
+      state.isCalculatingTargets = action.payload;
+    },
+    setNutritionTargets: (state, action: PayloadAction<{
+      targetCalories: number;
+      targetProtein: number;
+      targetCarbs: number;
+      targetFat: number;
+      lastCalculatedWith: {
+        age: number;
+        gender: Gender;
+        height: number;
+        weight: number;
+        activityLevel: ActivityLevel;
+        goal: Goal;
+      };
+      calculatedAt: string;
+    }>) => {
+      if (state.profile) {
+        state.profile = {
+          ...state.profile,
+          targetCalories: action.payload.targetCalories,
+          targetProtein: action.payload.targetProtein,
+          targetCarbs: action.payload.targetCarbs,
+          targetFat: action.payload.targetFat,
+          lastCalculatedWith: action.payload.lastCalculatedWith,
+          calculatedAt: action.payload.calculatedAt,
+        };
+      }
+    },
   },
 });
 
-export const { setProfile, updateProfile, clearProfile, setIsLoaded } = profileSlice.actions;
+export const { setProfile, updateProfile, clearProfile, setIsLoaded, setIsCalculatingTargets, setNutritionTargets } = profileSlice.actions;
 
 // Async actions for persisting profile
 export const loadProfile = () => async (dispatch: AppDispatch) => {
@@ -155,9 +197,22 @@ export const loadProfile = () => async (dispatch: AppDispatch) => {
                 firestoreProfile.goal === 'gain' ? 'gain_weight' : 'maintain',
         };
         
-        // Calculate targets
-        const targets = calculateNutritionTargets(profile);
-        const profileWithTargets = { ...profile, ...targets };
+        // Load nutrition targets from Firestore
+        const nutritionTargets = await firestoreService.getNutritionTargets(user.uid);
+        
+        let profileWithTargets = profile;
+        
+        if (nutritionTargets) {
+          profileWithTargets = {
+            ...profile,
+            targetCalories: nutritionTargets.targetCalories,
+            targetProtein: nutritionTargets.targetProtein,
+            targetCarbs: nutritionTargets.targetCarbs,
+            targetFat: nutritionTargets.targetFat,
+            lastCalculatedWith: nutritionTargets.lastCalculatedWith,
+            calculatedAt: nutritionTargets.calculatedAt?.toDate().toISOString(),
+          };
+        }
         
         // Save to AsyncStorage for offline access
         await AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileWithTargets));
@@ -191,12 +246,8 @@ export const loadProfile = () => async (dispatch: AppDispatch) => {
 
 export const saveProfile = (profile: UserProfile) => async (dispatch: AppDispatch) => {
   try {
-    // Calculate nutrition targets
-    const targets = calculateNutritionTargets(profile);
-    const profileWithTargets = { ...profile, ...targets };
-    
-    // Save to AsyncStorage for offline access
-    await AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileWithTargets));
+    // Save to AsyncStorage for offline access (without calculating targets)
+    await AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
     
     // Save to Firestore if user is logged in
     const user = auth.currentUser;
@@ -225,7 +276,7 @@ export const saveProfile = (profile: UserProfile) => async (dispatch: AppDispatc
       }
     }
     
-    dispatch(setProfile(profileWithTargets));
+    dispatch(setProfile(profile));
   } catch (error) {
     console.error('Error saving profile:', error);
     throw error;
@@ -247,6 +298,97 @@ export const deleteProfile = () => async (dispatch: AppDispatch) => {
   } catch (error) {
     console.error('Error deleting profile:', error);
   }
+};
+
+// Calculate nutrition targets using OpenAI
+export const calculateNutritionTargetsWithAI = (apiKey: string) => async (dispatch: AppDispatch, getState: () => any) => {
+  try {
+    dispatch(setIsCalculatingTargets(true));
+    
+    const { profile } = getState().profile;
+    
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
+    
+    if (!profile.age || !profile.height || !profile.weight) {
+      throw new Error('Please complete your profile before calculating nutrition targets');
+    }
+    
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Call OpenAI to calculate targets
+    const targets = await openaiService.calculateNutritionTargets(
+      {
+        age: profile.age,
+        gender: profile.gender,
+        height: profile.height,
+        weight: profile.weight,
+        activityLevel: profile.activityLevel,
+        goal: profile.goal,
+      },
+      apiKey
+    );
+    
+    // Create snapshot of current profile data used for calculation
+    const profileSnapshot = {
+      age: profile.age,
+      gender: profile.gender,
+      height: profile.height,
+      weight: profile.weight,
+      activityLevel: profile.activityLevel,
+      goal: profile.goal,
+    };
+    
+    const calculatedAt = new Date().toISOString();
+    
+    // Save to Firestore
+    await firestoreService.saveNutritionTargets(user.uid, targets, profileSnapshot);
+    
+    // Update state
+    dispatch(setNutritionTargets({
+      ...targets,
+      lastCalculatedWith: profileSnapshot,
+      calculatedAt,
+    }));
+    
+    // Update AsyncStorage
+    const updatedProfile = {
+      ...profile,
+      ...targets,
+      lastCalculatedWith: profileSnapshot,
+      calculatedAt,
+    };
+    await AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(updatedProfile));
+    
+    return targets;
+  } catch (error) {
+    console.error('Error calculating nutrition targets:', error);
+    throw error;
+  } finally {
+    dispatch(setIsCalculatingTargets(false));
+  }
+};
+
+// Helper function to check if sensitive data has changed
+export const hasSensitiveDataChanged = (profile: UserProfile): boolean => {
+  if (!profile.lastCalculatedWith) {
+    return true; // Never calculated before
+  }
+  
+  const { lastCalculatedWith } = profile;
+  
+  return (
+    profile.age !== lastCalculatedWith.age ||
+    profile.gender !== lastCalculatedWith.gender ||
+    profile.height !== lastCalculatedWith.height ||
+    profile.weight !== lastCalculatedWith.weight ||
+    profile.activityLevel !== lastCalculatedWith.activityLevel ||
+    profile.goal !== lastCalculatedWith.goal
+  );
 };
 
 export default profileSlice.reducer;
